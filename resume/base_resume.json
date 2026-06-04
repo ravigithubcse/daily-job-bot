@@ -1,0 +1,72 @@
+{
+  "name": "RAVIKUMAR",
+  "title": "Java Full Stack & Agentic AI Developer",
+  "email": "rn5127610@gmail.com",
+  "phone": "+91 9686906521",
+  "location": "Bengaluru, Karnataka, India",
+  "linkedin": "linkedin.com/in/ravi-kumar-3530b4250",
+  "github": "github.com/ravigithubcse",
+  "summary": "Highly skilled Java Full Stack Developer with proven expertise in designing, developing, and maintaining robust, scalable, and secure Java-based applications. Proficient in building RESTful APIs using Spring Boot and Spring Framework, alongside developing responsive, interactive user interfaces with Angular. Adept at writing clean, efficient, and well-documented code while participating in Agile development processes and code reviews. Possesses strong analytical and problem-solving skills with hands-on experience in API management, data modeling, DevOps practices, and cross-functional collaboration with UI/UX designers, product managers, and QA to ensure optimal application performance and quality.",
+  "skills": {
+    "frontend": "Angular 15/17, TypeScript, JavaScript, HTML5, CSS3, RxJS, Responsive UI",
+    "backend": "Java 17/18, Spring Boot 3.x, Spring Framework, RESTful APIs, Microservices, Spring Security",
+    "api_tools": "Swagger, Postman, API Management, Model Context Protocol (MCP), OpenAI GPT",
+    "testing_devops": "CI/CD Pipelines, DevOps Practices, Docker, Jenkins, Git, JIRA, JUnit, Mockito",
+    "databases": "SQL (PostgreSQL, MS SQL Server), NoSQL (MongoDB), Redis, Data Modelling, JPA, Hibernate",
+    "soft_skills": "Analytical & Problem-Solving Skills, Code Reviews, Agile Development, Cross-functional Teamwork"
+  },
+  "experience": [
+    {
+      "company": "Trinity Mobility Pvt. Ltd.",
+      "role": "Associate Software Engineer",
+      "location": "Bengaluru, India",
+      "duration": "Aug 2025 – May 2026",
+      "bullets": [
+        "Designed and developed robust, scalable, and secure multi-tenant Java-based enterprise applications using Spring Boot and Angular 15, streamlining template management operations for over 40 enterprise clients.",
+        "Built and maintained backend services and RESTful APIs, utilizing Swagger and Postman for comprehensive API management and documentation.",
+        "Collaborated directly with cross-functional teams including UI/UX designers, product managers, and QA to seamlessly integrate frontend components with backend services.",
+        "Implemented a Java-based Template Data Access Object (DAO) system utilizing Spring Boot and JPA for advanced data modeling and efficient management of tenant-specific data.",
+        "Participated in Agile development processes, performing peer code reviews and ensuring all deliverables consisted of clean, efficient, and well-documented code following best practices.",
+        "Troubleshot, debugged, and upgraded existing systems, identifying root causes to reduce average page load latency by over 25% and ensure maximum application performance.",
+        "Authored Angular component logic with strict testing coverage, clearing localized client state and session storage during secure application logouts.",
+        "Championed CI/CD pipelines and DevOps practices, managing real-time data pipelines (Kafka/Redis) processing 100,000+ IoT data points daily, automating release cycles using Docker and Jenkins."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Agentic AI Integration & MCP Architecture",
+      "tech": "Java, Spring Boot, PostgreSQL, GitHub",
+      "year": "2026",
+      "bullets": [
+        "Led a deep R&D project to re-architect agentic tool integration, transitioning from monolithic API wrappers to a highly scalable Model Context Protocol (MCP) native mesh.",
+        "Successfully stress-tested and benchmarked agent task completion utilizing an MCP server stack for GitHub and PostgreSQL databases.",
+        "Achieved unprecedented efficiency by reducing complex AI integration tasks from 4 hours to just 12 minutes through protocol-native architecture."
+      ]
+    },
+    {
+      "name": "AdaptiveFlow AI",
+      "tech": "Java, Spring Boot, Angular, OpenAI GPT-4o, WebSocket",
+      "year": "2025",
+      "bullets": [
+        "Architected a Real-Time Cognitive Process Intelligence Engine for autonomous business process monitoring.",
+        "Integrated OpenAI GPT-4o-mini for natural language business querying and explainable anomaly detection, supported by robust SQL data modeling.",
+        "Built real-time WebSocket STOMP pipelines delivering predictive intelligence across 6 business process types."
+      ]
+    }
+  ],
+  "certifications": [
+    "Java Spring Framework, Spring Boot & Spring AI (Generative AI) – Udemy",
+    "JavaScript Pro: Mastering Advanced Concepts and Techniques – Udemy",
+    "Comprehensive Angular 15 Training – Udemy",
+    "Java Full Stack Development Certification – JSpiders"
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Engineering in CSE",
+      "institution": "Akshaya Institute of Technology (AIT)",
+      "duration": "2020 – 2024",
+      "score": "CGPA: 8.96/10"
+    }
+  ]
+}
