@@ -110,7 +110,7 @@ def tailored_section(items):
     <strong>Email Body:</strong><br>
     <div style="background:white;border:1px solid #ddd;border-radius:5px;padding:9px;margin-top:4px;font-size:11px;font-family:monospace;line-height:1.6">{body}</div>
   </div>
-  <div style="margin-top:7px;font-size:10.5px;color:#777">✅ Tailored resume attached: <em>Resume_{i+1}_{job.get("company","").replace(" ","_")[:15]}.html</em></div>
+  <div style="margin-top:7px;font-size:10.5px;color:#777">✅ Tailored resume attached for: <em>{job.get("title","")} @ {job.get("company","")}</em></div>
 </div>"""
 
     return f"""
@@ -210,8 +210,9 @@ def send(html, tailored_data):
     for i, item in enumerate(tailored_data[:5]):
         job       = item.get("job", {})
         res_html  = item.get("resume_html", "")
-        company   = job.get("company","Co").replace(" ","_")[:15]
-        fname     = f"Resume_{i+1}_{company}.html"
+        company   = job.get("company","Co").replace(" ","_").replace("/","_")[:15]
+        title_short = job.get("title","Role").replace(" ","_").replace("/","_")[:20]
+        fname     = f"Resume_{i+1}_{company}_{title_short}.html"
         part = MIMEBase("text", "html")
         part.set_payload(res_html.encode("utf-8"))
         encoders.encode_base64(part)
