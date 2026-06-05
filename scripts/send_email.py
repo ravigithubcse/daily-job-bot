@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
 """
-Daily Job Email Digest Sender
-Sends to rn5127610@gmail.com every morning with:
-- Walk-In drives (highlighted first)
-- MNC openings
-- Startup openings
-- Other companies
-- AI-tailored resumes attached (top 5)
+Daily Job Email Digest Sender - Beautiful UI Version
+Sends to rn5127610@gmail.com every morning
 """
 
-import json
-import os
-import smtplib
+import json, os, smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from datetime import datetime
 
-RECIPIENT   = "rn5127610@gmail.com"
-SENDER      = os.environ.get("GMAIL_SENDER", "rn5127610@gmail.com")
-APP_PASS    = os.environ.get("GMAIL_APP_PASSWORD", "")
-JOBS_FILE   = "jobs_found.json"
-TAILORED    = "tailored_resumes.json"
+RECIPIENT = "rn5127610@gmail.com"
+SENDER    = os.environ.get("GMAIL_SENDER", "rn5127610@gmail.com")
+APP_PASS  = os.environ.get("GMAIL_APP_PASSWORD", "")
+JOBS_FILE = "jobs_found.json"
+TAILORED  = "tailored_resumes.json"
 
 
 def load():
@@ -34,163 +27,215 @@ def load():
     return jobs, tailored
 
 
-def job_card(job, num, highlight=False):
-    src_color = {
+def job_card(job, num):
+    is_walkin = job.get("is_walkin", False)
+    ct        = job.get("company_type", "Company")
+    source    = job.get("source", "")
+
+    # Source pill color
+    src_colors = {
         "LinkedIn": "#0077b5", "Wellfound": "#fb6404",
         "Internshala": "#00b4d8", "TimesJobs": "#c62828",
         "TimesJobs Walk-In": "#e65100", "Freshersworld": "#2e7d32",
-    }.get(job.get("source",""), "#546e7a")
+    }
+    src_color = src_colors.get(source, "#546e7a")
 
+    # Company type badge
     ct_badge = ""
-    ct = job.get("company_type","")
     if ct == "MNC":
-        ct_badge = '<span style="background:#1a237e;color:white;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">🏢 MNC</span>'
+        ct_badge = '<span style="background:linear-gradient(135deg,#1a237e,#283593);color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.5px">🏢 MNC</span>'
     elif ct == "Startup":
-        ct_badge = '<span style="background:#4a148c;color:white;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">🚀 Startup</span>'
+        ct_badge = '<span style="background:linear-gradient(135deg,#6a1b9a,#7b1fa2);color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.5px">🚀 Startup</span>'
 
-    wi_badge = ""
-    wi_info = ""
-    if job.get("is_walkin"):
-        wi_badge = '<span style="background:#e65100;color:white;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;margin-left:6px">🚶 WALK-IN</span>'
+    walkin_badge = ""
+    walkin_info  = ""
+    if is_walkin:
+        walkin_badge = '<span style="background:linear-gradient(135deg,#e65100,#f4511e);color:white;padding:3px 12px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:0.5px;animation:pulse 1s infinite">🚶 WALK-IN</span>'
         if job.get("walkin_info"):
-            wi_info = f'<div style="color:#e65100;font-size:11px;margin-top:3px;font-weight:600">📅 {job["walkin_info"]}</div>'
+            walkin_info = f'<div style="margin-top:6px;padding:6px 10px;background:rgba(230,81,0,0.08);border-left:3px solid #e65100;border-radius:4px;color:#bf360c;font-size:11px;font-weight:600">📅 {job["walkin_info"]}</div>'
 
-    skills_row = f'<div style="color:#555;font-size:11px;margin-top:2px">🔧 {job["skills"]}</div>' if job.get("skills") else ""
-    salary_row = f'<div style="color:#2e7d32;font-size:11px;margin-top:2px">💰 {job["salary"]}</div>' if job.get("salary") else ""
+    skills_row = f'<div style="margin-top:5px;font-size:11px;color:#555">🔧 <span style="color:#37474f">{job["skills"]}</span></div>' if job.get("skills") else ""
+    salary_row = f'<div style="margin-top:3px;font-size:11px;color:#2e7d32;font-weight:600">💰 {job["salary"]}</div>' if job.get("salary") else ""
 
-    bg = "#fff8e1" if job.get("is_walkin") else ("#f3f8ff" if highlight else "#ffffff")
-    border = "#e65100" if job.get("is_walkin") else ("#bbdefb" if highlight else "#e0e0e0")
-
-    src_badge = f'<span style="background:{src_color};color:white;padding:1px 6px;border-radius:8px;font-size:10px">{job.get("source","")}</span>'
+    # Card style
+    if is_walkin:
+        card_bg     = "linear-gradient(135deg,#fff8e1,#fff3e0)"
+        card_border = "#ffb74d"
+        card_shadow = "0 2px 12px rgba(230,81,0,0.12)"
+    elif ct == "MNC":
+        card_bg     = "linear-gradient(135deg,#f8f9ff,#f0f4ff)"
+        card_border = "#90caf9"
+        card_shadow = "0 2px 12px rgba(26,35,126,0.08)"
+    else:
+        card_bg     = "#ffffff"
+        card_border = "#e8eaf0"
+        card_shadow = "0 1px 6px rgba(0,0,0,0.06)"
 
     return f"""
-<div style="background:{bg};border:1px solid {border};border-radius:8px;padding:13px 15px;margin-bottom:9px">
-  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px">
-    <span style="font-size:13.5px;font-weight:700;color:#1a237e">{num}. {job.get("title","Role")}</span>
-    {wi_badge}{ct_badge}
+<div style="background:{card_bg};border:1px solid {card_border};border-radius:12px;padding:16px 18px;margin-bottom:12px;box-shadow:{card_shadow}">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px">
+    <span style="font-size:15px;font-weight:800;color:#1a237e;flex:1;min-width:200px">{num}. {job.get("title","Role")}</span>
+    {walkin_badge}
+    {ct_badge}
   </div>
-  <div style="color:#333;margin-top:4px;font-size:12.5px">
-    🏢 <strong>{job.get("company","")}</strong> &nbsp;|&nbsp; 📍 {job.get("location","Bengaluru")} &nbsp;|&nbsp; ⏱ {job.get("experience","")}
+  <div style="font-size:12.5px;color:#37474f;margin-bottom:4px">
+    🏢 <strong style="color:#1a237e">{job.get("company","")}</strong>
+    &nbsp;·&nbsp; 📍 {job.get("location","Bengaluru")}
+    &nbsp;·&nbsp; ⏱ <span style="color:#1565c0">{job.get("experience","0-2 years")}</span>
   </div>
-  {wi_info}{skills_row}{salary_row}
-  <div style="color:#999;font-size:10.5px;margin-top:3px">📅 Posted: {job.get("posted","Recent")} &nbsp;|&nbsp; {src_badge}</div>
-  <a href="{job.get("link","#")}" style="display:inline-block;margin-top:8px;background:#1565c0;color:white;padding:5px 15px;border-radius:5px;text-decoration:none;font-size:12px;font-weight:600">Apply Now →</a>
+  {walkin_info}{skills_row}{salary_row}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px">
+    <span style="font-size:10px;color:#9e9e9e">📅 {job.get("posted","Recent")} &nbsp;·&nbsp;
+      <span style="background:{src_color};color:white;padding:2px 8px;border-radius:10px;font-size:9.5px">{source}</span>
+    </span>
+    <a href="{job.get("link","#")}" style="background:linear-gradient(135deg,#1565c0,#1976d2);color:white;padding:7px 18px;border-radius:20px;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(21,101,192,0.3)">Apply Now →</a>
+  </div>
 </div>"""
 
 
-def section(title_str, icon, jobs, color, highlight=False):
-    if not jobs:
-        return ""
-    cards = "".join(job_card(j, i+1, highlight) for i, j in enumerate(jobs))
+def section_html(title_str, icon, jobs, grad_start, grad_end, show_all=True):
+    if not jobs: return ""
+    display = jobs if show_all else jobs[:15]
+    cards = "".join(job_card(j, i+1) for i, j in enumerate(display))
+    more = f'<div style="text-align:center;font-size:11px;color:#9e9e9e;margin-top:4px">+ {len(jobs)-15} more jobs not shown</div>' if not show_all and len(jobs) > 15 else ""
     return f"""
-<div style="margin-bottom:22px">
-  <h2 style="color:{color};font-size:15px;border-bottom:2px solid {color};padding-bottom:5px;margin-bottom:11px">{icon} {title_str} ({len(jobs)})</h2>
-  {cards}
+<div style="margin-bottom:28px">
+  <div style="background:linear-gradient(135deg,{grad_start},{grad_end});border-radius:12px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:20px">{icon}</span>
+    <span style="color:white;font-size:15px;font-weight:800;letter-spacing:0.3px">{title_str}</span>
+    <span style="margin-left:auto;background:rgba(255,255,255,0.25);color:white;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">{len(jobs)}</span>
+  </div>
+  {cards}{more}
 </div>"""
 
 
-def tailored_section(items):
-    if not items:
-        return ""
+def tailored_section_html(items):
+    if not items: return ""
     rows = ""
     for i, item in enumerate(items):
-        job = item.get("job", {})
-        t   = item.get("tailored", {})
-        skills = ", ".join(t.get("top_skills", []))
-        subj   = t.get("email_subject", "")
-        body   = t.get("email_body", "").replace("\n", "<br>")
+        job     = item.get("job", {})
+        t       = item.get("tailored", {})
+        skills  = " &nbsp;·&nbsp; ".join(f'<span style="background:#e8f0fe;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">{s}</span>' for s in t.get("top_skills", [])[:4])
+        subj    = t.get("email_subject", "")
+        body    = t.get("email_body", "").replace("\n", "<br>")
+        company = job.get("company","")
+        title   = job.get("title","")
+        ct      = job.get("company_type","")
+        ct_icon = "🏢" if ct == "MNC" else ("🚀" if ct == "Startup" else "💼")
+
         rows += f"""
-<div style="background:#f3f8ff;border:1px solid #90caf9;border-radius:8px;padding:13px;margin-bottom:10px">
-  <div style="font-weight:700;color:#1a237e;font-size:13px">{i+1}. {job.get("title")} @ {job.get("company")}
-    <span style="font-size:10px;color:#555;font-weight:400;margin-left:6px">({job.get("company_type","")}, {job.get("source","")})</span>
+<div style="background:white;border:1px solid #e3f2fd;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(21,101,192,0.06)">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <span style="background:linear-gradient(135deg,#1565c0,#1976d2);color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">{i+1}</span>
+    <div>
+      <div style="font-weight:800;color:#1a237e;font-size:13px">{title}</div>
+      <div style="font-size:11px;color:#666">{ct_icon} {company} &nbsp;·&nbsp; {job.get("source","")}</div>
+    </div>
   </div>
-  <div style="font-size:11.5px;color:#333;margin-top:5px">🎯 <strong>Matched Skills:</strong> {skills}</div>
-  <div style="margin-top:8px;font-size:11.5px">
-    <strong>📧 Subject:</strong> <span style="color:#1565c0">{subj}</span><br><br>
-    <strong>Email Body:</strong><br>
-    <div style="background:white;border:1px solid #ddd;border-radius:5px;padding:9px;margin-top:4px;font-size:11px;font-family:monospace;line-height:1.6">{body}</div>
+  <div style="margin-bottom:8px;flex-wrap:wrap;display:flex;gap:4px">{skills}</div>
+  <div style="background:#f8f9ff;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+    <div style="font-size:10.5px;color:#666;font-weight:700;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px">📧 Email Subject</div>
+    <div style="font-size:11.5px;color:#1565c0;font-weight:600">{subj}</div>
   </div>
-  <div style="margin-top:7px;font-size:10.5px;color:#777">✅ Tailored resume attached for: <em>{job.get("title","")} @ {job.get("company","")}</em></div>
+  <div style="background:#f8f9ff;border-radius:8px;padding:10px 12px">
+    <div style="font-size:10.5px;color:#666;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">✉️ Cold Email Body</div>
+    <div style="font-size:11px;color:#333;font-family:Georgia,serif;line-height:1.7;border-left:3px solid #90caf9;padding-left:10px">{body}</div>
+  </div>
+  <div style="margin-top:8px;font-size:10.5px;color:#43a047;font-weight:600">📎 Resume attached: Resume_{i+1}_{company.replace(" ","_")[:15]}_{title.replace(" ","_")[:20]}.html</div>
 </div>"""
 
     return f"""
-<div style="margin-bottom:22px">
-  <h2 style="color:#1b5e20;font-size:15px;border-bottom:2px solid #388e3c;padding-bottom:5px;margin-bottom:11px">🤖 AI-Tailored Resumes + Cold Emails ({len(items)})</h2>
+<div style="margin-bottom:28px">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);border-radius:12px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:20px">🤖</span>
+    <span style="color:white;font-size:15px;font-weight:800;letter-spacing:0.3px">AI-Tailored Resumes + Cold Emails</span>
+    <span style="margin-left:auto;background:rgba(255,255,255,0.25);color:white;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">{len(items)}</span>
+  </div>
   {rows}
 </div>"""
 
 
 def build_html(jobs_data, tailored_data):
-    today     = datetime.now().strftime("%A, %d %B %Y")
-    total     = jobs_data.get("total_found", 0)
-    wi_count  = jobs_data.get("walkin_count", 0)
-    mnc_count = jobs_data.get("mnc_count", 0)
-    st_count  = jobs_data.get("startup_count", 0)
-    ot_count  = jobs_data.get("other_count", 0)
+    today    = datetime.now().strftime("%A, %d %B %Y")
+    total    = jobs_data.get("total_found", 0)
+    wi_count = jobs_data.get("walkin_count", 0)
+    mnc_count= jobs_data.get("mnc_count", 0)
+    st_count = jobs_data.get("startup_count", 0)
+    ot_count = jobs_data.get("other_count", 0)
 
-    walkin_jobs  = jobs_data.get("walkin_jobs",  [])
-    mnc_jobs     = jobs_data.get("mnc_jobs",     [])
+    walkin_jobs  = jobs_data.get("walkin_jobs", [])
+    mnc_jobs     = jobs_data.get("mnc_jobs", [])
     startup_jobs = jobs_data.get("startup_jobs", [])
-    other_jobs   = jobs_data.get("other_jobs",   [])[:15]  # cap to 15
+    other_jobs   = jobs_data.get("other_jobs", [])
 
-    empty_msg = ""
+    stat = lambda val, label, bg: f'''
+<div style="background:{bg};border-radius:12px;padding:12px 20px;text-align:center;min-width:70px">
+  <div style="color:white;font-size:24px;font-weight:900;line-height:1">{val}</div>
+  <div style="color:rgba(255,255,255,0.8);font-size:10px;font-weight:600;margin-top:3px;letter-spacing:0.5px">{label}</div>
+</div>'''
+
+    stats = (
+        stat(total,    "TOTAL JOBS",  "rgba(255,255,255,0.18)") +
+        stat(wi_count, "WALK-INS",    "rgba(230,81,0,0.5)" if wi_count else "rgba(255,255,255,0.1)") +
+        stat(mnc_count,"MNCs",        "rgba(255,255,255,0.18)") +
+        stat(st_count, "STARTUPS",    "rgba(255,255,255,0.18)") +
+        stat(len(tailored_data),"AI RESUMES","rgba(46,125,50,0.5)")
+    )
+
+    empty = ""
     if total == 0:
-        empty_msg = '<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:14px;text-align:center;color:#e65100;margin-bottom:20px">⚠️ No matching jobs found today. Will retry tomorrow!</div>'
+        empty = '<div style="background:#fff3e0;border:2px dashed #ffb74d;border-radius:12px;padding:20px;text-align:center;color:#e65100;margin-bottom:20px;font-weight:600">⚠️ No matching jobs found today. Bot will retry tomorrow at 7 AM!</div>'
 
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#eceff1;font-family:Arial,sans-serif">
-<div style="max-width:700px;margin:0 auto;padding:20px">
+    tips = """
+<div style="background:linear-gradient(135deg,#f0f4ff,#e8f0fe);border:1px solid #c5cae9;border-radius:12px;padding:16px 18px;margin-bottom:20px">
+  <div style="font-weight:800;color:#1a237e;font-size:13px;margin-bottom:10px">💡 Today's Action Tips</div>
+  <div style="display:grid;gap:7px">
+    <div style="font-size:12px;color:#37474f;display:flex;gap:8px"><span style="color:#1565c0;font-weight:700">①</span> Walk-in jobs are first-come-first-serve — go early with printed resume!</div>
+    <div style="font-size:12px;color:#37474f;display:flex;gap:8px"><span style="color:#1565c0;font-weight:700">②</span> For MNCs: apply on official careers portal + LinkedIn both</div>
+    <div style="font-size:12px;color:#37474f;display:flex;gap:8px"><span style="color:#1565c0;font-weight:700">③</span> Send cold email with subject: <em style="color:#1565c0">Java Developer | Spring Boot + Angular | 1.5 YOE | Bengaluru</em></div>
+    <div style="font-size:12px;color:#37474f;display:flex;gap:8px"><span style="color:#1565c0;font-weight:700">④</span> Follow up on LinkedIn 3 days after applying — it doubles your response rate!</div>
+  </div>
+</div>"""
+
+    walkin_section  = section_html(f"Walk-In Drives — Bengaluru", "🚶", walkin_jobs,  "#e65100", "#f4511e")
+    mnc_section     = section_html(f"MNC Openings", "🏢", mnc_jobs,     "#1a237e", "#1565c0")
+    startup_section = section_html(f"Startup Openings", "🚀", startup_jobs, "#6a1b9a", "#7b1fa2")
+    other_section   = section_html(f"Other Companies", "💼", other_jobs,  "#37474f", "#455a64", show_all=False)
+    ai_section      = tailored_section_html(tailored_data)
+
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Job Digest</title></head>
+<body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
+<div style="max-width:680px;margin:0 auto;padding:24px 16px">
 
   <!-- HEADER -->
-  <div style="background:linear-gradient(135deg,#1a237e 0%,#0d47a1 60%,#1565c0 100%);border-radius:14px;padding:22px 26px;margin-bottom:20px;text-align:center">
-    <div style="font-size:26px;margin-bottom:4px">☕</div>
-    <div style="color:white;font-size:21px;font-weight:700">Good Morning, Roy!</div>
-    <div style="color:#90caf9;font-size:13px;margin-top:3px">{today} &nbsp;|&nbsp; Your Daily Job Digest</div>
-    <div style="display:flex;justify-content:center;gap:14px;margin-top:16px;flex-wrap:wrap">
-      <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:9px 18px">
-        <div style="color:white;font-size:22px;font-weight:700">{total}</div>
-        <div style="color:#90caf9;font-size:11px">Total Jobs</div>
-      </div>
-      <div style="background:rgba(230,81,0,0.4);border-radius:10px;padding:9px 18px">
-        <div style="color:white;font-size:22px;font-weight:700">{wi_count}</div>
-        <div style="color:#ffcc80;font-size:11px">Walk-Ins</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:9px 18px">
-        <div style="color:white;font-size:22px;font-weight:700">{mnc_count}</div>
-        <div style="color:#90caf9;font-size:11px">MNCs</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:9px 18px">
-        <div style="color:white;font-size:22px;font-weight:700">{st_count}</div>
-        <div style="color:#90caf9;font-size:11px">Startups</div>
-      </div>
+  <div style="background:linear-gradient(135deg,#0d1b6e 0%,#1a237e 40%,#1565c0 100%);border-radius:20px;padding:28px 24px 24px;margin-bottom:20px;text-align:center;box-shadow:0 8px 32px rgba(13,27,110,0.3)">
+    <div style="font-size:36px;margin-bottom:6px">☕</div>
+    <div style="color:white;font-size:26px;font-weight:900;letter-spacing:-0.5px">Good Morning, Roy!</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;letter-spacing:0.3px">{today} &nbsp;·&nbsp; Your Daily Job Digest</div>
+    <div style="display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap">
+      {stats}
     </div>
   </div>
 
   <!-- CONTENT -->
-  {empty_msg}
-  {section("Walk-In Drives – Bengaluru", "🚶", walkin_jobs, "#e65100", highlight=True)}
-  {section("MNC Openings", "🏢", mnc_jobs, "#1a237e", highlight=True)}
-  {section("Startup Openings", "🚀", startup_jobs, "#4a148c")}
-  {section("Other Companies", "💼", other_jobs, "#37474f")}
-  {tailored_section(tailored_data)}
-
-  <!-- TIPS -->
-  <div style="background:#f5f5f5;border-radius:10px;padding:14px 16px;margin-bottom:18px">
-    <div style="font-weight:700;color:#424242;font-size:13px;margin-bottom:8px">💡 Today's Tips</div>
-    <ul style="font-size:12px;color:#555;padding-left:18px;margin:0;line-height:1.8">
-      <li>Walk-in jobs are first-come-first-serve — go early!</li>
-      <li>For MNCs: apply on their official careers portal too</li>
-      <li>Follow up on LinkedIn 3 days after applying</li>
-      <li>Customise email subject: <em>Java Developer | Spring Boot + Angular | 1.5 YOE | Bengaluru</em></li>
-    </ul>
-  </div>
+  {empty}
+  {walkin_section}
+  {mnc_section}
+  {startup_section}
+  {other_section}
+  {ai_section}
+  {tips}
 
   <!-- FOOTER -->
-  <div style="text-align:center;color:#9e9e9e;font-size:11px;padding:8px 0">
-    🤖 Roy's Job Bot &nbsp;|&nbsp; Runs daily at 7:00 AM IST via GitHub Actions<br>
-    Java Full Stack | Spring Boot | Angular | Bengaluru
+  <div style="text-align:center;padding:16px 0 8px">
+    <div style="display:inline-block;background:linear-gradient(135deg,#1a237e,#1565c0);border-radius:20px;padding:10px 24px">
+      <div style="color:white;font-size:11px;font-weight:700;letter-spacing:0.5px">🤖 ROY'S JOB BOT</div>
+      <div style="color:rgba(255,255,255,0.7);font-size:10px;margin-top:2px">Runs daily at 7:00 AM IST · Java Full Stack · Bengaluru · 100% Free</div>
+    </div>
   </div>
+
 </div>
 </body></html>"""
 
@@ -203,16 +248,14 @@ def send(html, tailored_data):
     msg["Subject"] = subj
     msg["From"]    = SENDER
     msg["To"]      = RECIPIENT
-
     msg.attach(MIMEText(html, "html"))
 
-    # Attach tailored resumes
     for i, item in enumerate(tailored_data[:5]):
-        job       = item.get("job", {})
-        res_html  = item.get("resume_html", "")
-        company   = job.get("company","Co").replace(" ","_").replace("/","_")[:15]
-        title_short = job.get("title","Role").replace(" ","_").replace("/","_")[:20]
-        fname     = f"Resume_{i+1}_{company}_{title_short}.html"
+        job      = item.get("job", {})
+        res_html = item.get("resume_html", "")
+        company  = job.get("company","Co").replace(" ","_").replace("/","_")[:15]
+        title_s  = job.get("title","Role").replace(" ","_").replace("/","_")[:20]
+        fname    = f"Resume_{i+1}_{company}_{title_s}.html"
         part = MIMEBase("text", "html")
         part.set_payload(res_html.encode("utf-8"))
         encoders.encode_base64(part)
@@ -223,12 +266,11 @@ def send(html, tailored_data):
         print("  ⚠ GMAIL_APP_PASSWORD not set — saving preview only")
         with open("email_preview.html","w") as f: f.write(html)
         return False
-
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as srv:
             srv.login(SENDER, APP_PASS)
             srv.sendmail(SENDER, RECIPIENT, msg.as_string())
-        print(f"  ✅ Email sent → {RECIPIENT} ({len(tailored_data)} resumes attached)")
+        print(f"  ✅ Beautiful email sent → {RECIPIENT}")
         return True
     except Exception as e:
         print(f"  ❌ Email failed: {e}")
