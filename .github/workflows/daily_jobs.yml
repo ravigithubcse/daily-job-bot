@@ -1,0 +1,61 @@
+name: "Roy's Daily Job Bot 🤖"
+
+on:
+  # 7:00 AM IST = 1:30 AM UTC
+  schedule:
+    - cron: '30 1 * * *'
+
+  # Manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual run'
+        required: false
+        default: 'Manual test'
+
+jobs:
+  daily-job-digest:
+    name: Scrape Jobs & Send Email
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Python setup ──────────────────────────────────────────────────────
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ── Install deps ──────────────────────────────────────────────────────
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Run pipeline ──────────────────────────────────────────────────────
+      - name: 🚀 Run Job Bot (Scrape → Tailor → Email)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
+        run: python scripts/run_all.py
+
+      # ── Save artifacts for inspection ─────────────────────────────────────
+      - name: 📊 Upload email preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: email-preview-run-${{ github.run_number }}
+          path: email_preview.html
+          retention-days: 7
+
+      - name: 📋 Upload jobs data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs-data-run-${{ github.run_number }}
+          path: jobs_found.json
+          retention-days: 7
