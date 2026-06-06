@@ -184,6 +184,17 @@ def build_html(jobs_data, tailored_data):
         stat_box(len(tailored_data), "AI CVs",  "rgba(46,125,50,0.55)")
     )
 
+    # Filter stats banner
+    fs = jobs_data.get("filter_stats", {})
+    filter_banner = ""
+    if fs:
+        filter_banner = f'''<div style="margin-top:10px;background:rgba(255,255,255,0.1);border-radius:10px;padding:8px 14px;display:flex;justify-content:center;gap:16px;flex-wrap:wrap">
+          <span style="color:rgba(255,255,255,0.7);font-size:10px">🔍 Scraped: <strong style="color:white">{fs.get("total_scraped",0)}</strong></span>
+          <span style="color:rgba(255,255,255,0.7);font-size:10px">🔄 Dupes removed: <strong style="color:#ffcc80">{fs.get("duplicates_removed",0)}</strong></span>
+          <span style="color:rgba(255,255,255,0.7);font-size:10px">❌ Inactive removed: <strong style="color:#ef9a9a">{fs.get("inactive_removed",0)}</strong></span>
+          <span style="color:rgba(255,255,255,0.7);font-size:10px">✅ Fresh & Active: <strong style="color:#a5d6a7">{fs.get("final_sent",0)}</strong></span>
+        </div>'''
+
     platform_pills = "".join(
         f'<span style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;margin:2px">{p}</span>'
         for p in ["Naukri","Instahire","LinkedIn","Wellfound","Internshala","TimesJobs","Freshersworld","Shine","Indeed","Glassdoor"]
@@ -230,6 +241,7 @@ def build_html(jobs_data, tailored_data):
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.15)">
       <div style="color:rgba(255,255,255,0.5);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px">Searched across 10 platforms</div>
       <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px">{platform_pills}</div>
+      {filter_banner}
     </div>
   </div>
 

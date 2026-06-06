@@ -2,14 +2,14 @@ name: "Roy's Daily Job Bot 🤖"
 
 on:
   schedule:
-    - cron: '30 1 * * *'   # 7:00 AM IST = 1:30 AM UTC
+    - cron: '30 1 * * *'   # 7:00 AM IST = 1:30 AM UTC every day
   workflow_dispatch:
 
 jobs:
   daily-job-digest:
-    name: Scrape Jobs & Send Email
+    name: Scrape → Filter → Tailor → Email
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: 📥 Checkout repository
@@ -24,10 +24,11 @@ jobs:
       - name: 📦 Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 🚀 Run Job Bot (Scrape → Tailor → Email)
+      - name: 🚀 Run Job Bot (Scrape → Filter → Tailor → Email)
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
+          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/run_all.py
 
       - name: 📊 Upload email preview
