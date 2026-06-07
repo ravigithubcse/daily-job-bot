@@ -50,20 +50,35 @@ def job_card(job, num):
     ct      = job.get("company_type", "Company")
     source  = job.get("source", "")
     src_col = SOURCE_COLORS.get(source, "#546e7a")
+    company = job.get("company","") or "N/A"
+    title   = job.get("title","Role")
+    exp     = job.get("experience","0-2 years (Fresher)")
+    rec_email = job.get("recruiter_email","")
+    rec_phone = job.get("recruiter_phone","")
 
-    # Badges
-    wi_badge  = pill("🚶 WALK-IN", "#e65100") + "&nbsp;" if is_wi else ""
-    ct_badge  = (pill("🏢 MNC", "#1a237e") if ct == "MNC"
-                 else pill("🚀 Startup", "#6a1b9a") if ct == "Startup"
-                 else "")
+    # Badges row
+    wi_badge  = f'<span style="background:#e65100;color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:0.3px">🚶 WALK-IN</span>&nbsp;' if is_wi else ""
+    ct_badge  = ('<span style="background:#1a237e;color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700">🏢 MNC</span>' if ct == "MNC"
+                 else '<span style="background:#6a1b9a;color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700">🚀 Startup</span>' if ct == "Startup"
+                 else '<span style="background:#37474f;color:white;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700">💼 Company</span>')
+    exp_badge = f'<span style="background:#e8f5e9;color:#2e7d32;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid #c8e6c9">⏱ {exp}</span>'
+    src_badge = f'<span style="background:{src_col};color:white;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:600">{source}</span>'
 
     walkin_box = ""
     if is_wi and job.get("walkin_info"):
-        walkin_box = f'<div style="margin:7px 0;padding:7px 12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:6px;font-size:11px;color:#bf360c;font-weight:600">📅 {job["walkin_info"]}</div>'
+        walkin_box = f'<div style="margin:6px 0;padding:6px 12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:6px;font-size:11px;color:#bf360c;font-weight:600">📅 {job["walkin_info"]}</div>'
 
-    skills_row = f'<div style="margin-top:5px;font-size:11px;color:#546e7a">🔧 {job["skills"]}</div>' if job.get("skills") else ""
+    skills_row = f'<div style="margin-top:4px;font-size:11px;color:#546e7a">🔧 {job["skills"]}</div>' if job.get("skills") else ""
     salary_row = f'<div style="margin-top:3px;font-size:11.5px;color:#2e7d32;font-weight:700">💰 {job["salary"]}</div>' if job.get("salary") else ""
 
+    # Recruiter contact box
+    contact_box = ""
+    if rec_email or rec_phone:
+        email_part = f'📧 <a href="mailto:{rec_email}" style="color:#1565c0;font-weight:700;text-decoration:none">{rec_email}</a>&nbsp;&nbsp;' if rec_email else ""
+        phone_part = f'📞 <span style="color:#2e7d32;font-weight:700">{rec_phone}</span>' if rec_phone else ""
+        contact_box = f'<div style="margin-top:7px;padding:7px 12px;background:#e3f2fd;border-left:4px solid #1565c0;border-radius:6px;font-size:11px">{email_part}{phone_part}</div>'
+
+    # Card style
     if is_wi:
         bg, border, shadow = "#fffbf0", "#ffd54f", "0 3px 14px rgba(255,111,0,0.13)"
     elif ct == "MNC":
@@ -75,22 +90,21 @@ def job_card(job, num):
 
     return f"""
 <div style="background:{bg};border:1.5px solid {border};border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:{shadow}">
-  <div style="margin-bottom:7px">
-    {wi_badge}{ct_badge}
+  <!-- Company name — BIG and prominent -->
+  <div style="font-size:18px;font-weight:900;color:#0d47a1;margin-bottom:4px;letter-spacing:-0.3px">🏢 {company}</div>
+  <!-- Job title -->
+  <div style="font-size:14px;font-weight:700;color:#1a237e;margin-bottom:8px">{num}. {title}</div>
+  <!-- Badges row -->
+  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+    {wi_badge}{ct_badge}{exp_badge}
   </div>
-  <div style="font-size:15px;font-weight:800;color:#1a237e;margin-bottom:6px;line-height:1.3">{num}. {job.get("title","Role")}</div>
-  <div style="font-size:12.5px;color:#37474f;margin-bottom:3px">
-    🏢 <strong style="color:#283593">{job.get("company","")}</strong>
-    &nbsp;·&nbsp; 📍 {job.get("location","Bengaluru")}
-    &nbsp;·&nbsp; ⏱ <span style="color:#1565c0;font-weight:600">{job.get("experience","0-2 years")}</span>
-  </div>
-  {walkin_box}{skills_row}{salary_row}
+  <!-- Location -->
+  <div style="font-size:12px;color:#546e7a;margin-bottom:3px">📍 {job.get("location","Bengaluru, India")}</div>
+  {walkin_box}{skills_row}{salary_row}{contact_box}
+  <!-- Footer row -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:10.5px;color:#9e9e9e">
-      📅 {job.get("posted","Recent")} &nbsp;·&nbsp;
-      <span style="background:{src_col};color:white;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:600">{source}</span>
-    </div>
-    <a href="{job.get("link","#")}" style="background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);color:white;padding:8px 20px;border-radius:22px;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:0.3px;box-shadow:0 3px 10px rgba(21,101,192,0.35)">Apply Now →</a>
+    <div style="font-size:10.5px;color:#9e9e9e">📅 {job.get("posted","Today")} &nbsp;·&nbsp; {src_badge}</div>
+    <a href="{job.get("link","#")}" style="background:linear-gradient(135deg,#1565c0,#1976d2);color:white;padding:8px 20px;border-radius:22px;text-decoration:none;font-size:12px;font-weight:800;box-shadow:0 3px 10px rgba(21,101,192,0.35)">Apply Now →</a>
   </div>
 </div>"""
 
