@@ -1,326 +1,287 @@
 #!/usr/bin/env python3
 """
-Resume Tailor — 100% FREE, No API needed
-Uses smart keyword matching to tailor resume for each job
+Roy's Resume Tailor — ATS keyword-based (free, no API)
+Picks top 5 ATS-scored jobs and tailors resume + cold email for each.
 """
 
-import json
-import os
+import json, os, re
 from datetime import datetime
 
-BASE_RESUME_PATH = "resume/base_resume.json"
-JOBS_FILE        = "jobs_found.json"
-OUTPUT_FILE      = "tailored_resumes.json"
-MAX_TAILOR       = 5
+JOBS_FILE   = "jobs_found.json"
+RESUME_FILE = "resume/base_resume.json"
+OUTPUT_FILE = "tailored_resumes.json"
 
-# ── Keyword → skill mapping ────────────────────────────────────────────────
+# Roy's core resume data
+ROY = {
+    "name":     "Ravikumar",
+    "title":    "Java Full Stack Developer",
+    "email":    "rn5127610@gmail.com",
+    "phone":    "+91 9686906521",
+    "linkedin": "linkedin.com/in/ravikumar2002",
+    "github":   "github.com/ravigithubcse",
+    "location": "Bengaluru, India",
+    "yoe":      "1.5 years",
+    "summary":  (
+        "Java Full Stack Developer with 1.5 years of experience building "
+        "enterprise-grade Spring Boot microservices and Angular frontends at "
+        "Trinity Mobility. Proficient in REST APIs, JWT security, Kafka/Redis "
+        "real-time pipelines, Docker CI/CD, and Angular 15/17."
+    ),
+    "skills": {
+        "backend":  ["Java 21", "Spring Boot 3.x", "Spring Security", "Spring Cloud",
+                     "REST APIs", "Microservices", "JPA/Hibernate", "JWT"],
+        "frontend": ["Angular 15/17", "TypeScript", "RxJS", "HTML5", "CSS3", "WebSocket"],
+        "data":     ["PostgreSQL", "MS SQL Server", "Redis", "Kafka", "MongoDB"],
+        "devops":   ["Docker", "Jenkins", "GitHub Actions", "CI/CD", "Git"],
+        "ai":       ["OpenAI GPT-4o", "Model Context Protocol (MCP)", "LangChain"],
+        "testing":  ["JUnit", "Mockito", "Swagger", "Postman"],
+    },
+    "experience": [
+        {
+            "company":  "Trinity Mobility Pvt. Ltd.",
+            "role":     "Associate Software Engineer",
+            "period":   "Aug 2025 – May 2026",
+            "bullets": [
+                "Designed scalable multi-tenant Spring Boot + Angular 15 applications for 40+ enterprise clients",
+                "Built Kafka/Redis IoT pipelines processing 100,000+ data points daily",
+                "Reduced page load latency by 25%+ via targeted optimisation and caching",
+                "Automated CI/CD pipelines using Docker and Jenkins",
+                "Implemented JWT-secured REST APIs with Spring Security",
+            ]
+        }
+    ],
+    "projects": [
+        {
+            "name": "AdaptiveFlow AI",
+            "tech": "Java, Spring Boot, Angular, OpenAI GPT-4o, WebSocket",
+            "desc": "Real-Time Cognitive Process Intelligence Engine with anomaly detection and NLP querying",
+        },
+        {
+            "name": "SkillDNA AI",
+            "tech": "Java 21, Spring Boot, Angular, Kafka, Redis, PostgreSQL, Neo4j, Docker",
+            "desc": "AI-powered Career Digital Twin — 7 microservices, predicts career trajectories",
+        },
+        {
+            "name": "SupplySense AI",
+            "tech": "Java, Spring Boot, Python, FastAPI, PyTorch, Kafka, TimescaleDB",
+            "desc": "Predictive supply chain risk platform with LSTM forecasting and RoBERTa NLP",
+        },
+        {
+            "name": "Agri-Twin AI",
+            "tech": "Java 21, Spring Boot 3, Angular 19, PostgreSQL, Docker, GitHub Actions",
+            "desc": "Farm Commodity Digital Twin for Indian smallholder farmers",
+        },
+    ],
+    "education": "B.E. CSE — Akshaya Institute of Technology (VTU, 2024) — CGPA: 8.96/10",
+    "certs": [
+        "Java Spring Framework + Spring Boot + Spring AI — Udemy",
+        "Databricks Generative AI Fundamentals",
+        "Comprehensive Angular 15 Training — Udemy",
+    ],
+}
+
+# Skill keyword → resume section mapping
 SKILL_MAP = {
-    "java":          "Java 17/18",
-    "spring boot":   "Spring Boot 3.x",
-    "spring":        "Spring Framework",
-    "angular":       "Angular 15/17",
-    "typescript":    "TypeScript",
-    "javascript":    "JavaScript",
-    "microservice":  "Microservices Architecture",
-    "rest":          "RESTful APIs",
-    "api":           "REST API Development",
-    "kafka":         "Apache Kafka (IoT pipeline — 100K+ events/day)",
-    "redis":         "Redis Caching",
-    "docker":        "Docker & Containerization",
-    "jenkins":       "Jenkins CI/CD",
-    "git":           "Git & Version Control",
-    "postgresql":    "PostgreSQL",
-    "mongodb":       "MongoDB",
-    "sql":           "SQL & Data Modelling",
-    "hibernate":     "Hibernate / JPA",
-    "jpa":           "JPA & Hibernate ORM",
-    "junit":         "JUnit 5 & Mockito",
-    "mockito":       "Mockito Unit Testing",
-    "devops":        "DevOps & CI/CD Pipelines",
-    "agile":         "Agile / Scrum",
-    "swagger":       "Swagger / OpenAPI",
-    "postman":       "Postman API Testing",
-    "security":      "Spring Security",
-    "jwt":           "JWT Authentication",
-    "openai":        "OpenAI GPT Integration",
-    "mcp":           "Model Context Protocol (MCP)",
-    "ai":            "Agentic AI Integration",
-    "websocket":     "WebSocket / STOMP",
-    "rxjs":          "RxJS",
-    "html":          "HTML5 & CSS3",
-    "css":           "CSS3 & Responsive UI",
-    "multi.tenant":  "Multi-tenant Architecture (40+ clients)",
-    "full.stack":    "Full Stack Development (Java + Angular)",
-    "backend":       "Backend Development (Java/Spring Boot)",
-    "fresher":       "Quick learner, production-ready from day 1",
-}
-
-BULLET_KEYWORDS = {
-    "kafka":        "Championed CI/CD pipelines and DevOps practices, managing real-time data pipelines (Kafka/Redis) processing 100,000+ IoT data points daily, automating release cycles using Docker and Jenkins.",
-    "microservice": "Designed and developed robust, scalable, and secure multi-tenant Java-based enterprise applications using Spring Boot and Angular 15, streamlining template management operations for over 40 enterprise clients.",
-    "api":          "Built and maintained backend services and RESTful APIs, utilizing Swagger and Postman for comprehensive API management and documentation.",
-    "angular":      "Authored Angular component logic with strict testing coverage, clearing localized client state and session storage during secure application logouts.",
-    "jpa":          "Implemented a Java-based Template Data Access Object (DAO) system utilizing Spring Boot and JPA for advanced data modeling and efficient management of tenant-specific data.",
-    "agile":        "Participated in Agile development processes, performing peer code reviews and ensuring all deliverables consisted of clean, efficient, and well-documented code.",
-    "performance":  "Troubleshot, debugged, and upgraded existing systems, identifying root causes to reduce average page load latency by over 25%.",
-    "devops":       "Championed CI/CD pipelines and DevOps practices, managing real-time data pipelines (Kafka/Redis) processing 100,000+ IoT data points daily.",
-    "docker":       "Championed CI/CD pipelines and DevOps practices, automating release cycles using Docker and Jenkins.",
-    "security":     "Collaborated directly with cross-functional teams including UI/UX designers, product managers, and QA to seamlessly integrate frontend components with backend services.",
-    "default":      "Designed and developed robust, scalable, and secure multi-tenant Java-based enterprise applications using Spring Boot and Angular 15.",
-}
-
-SUMMARY_TEMPLATES = {
-    "mnc": (
-        "Results-driven Java Full Stack Developer with 1.5 years of enterprise experience at Trinity Mobility, "
-        "building scalable multi-tenant applications serving 40+ enterprise clients using {skills}. "
-        "Proven track record in Agile environments with strong focus on code quality, CI/CD automation, and cross-functional collaboration. "
-        "Seeking to leverage production-grade Java expertise at {company} to deliver high-impact software solutions."
-    ),
-    "startup": (
-        "Passionate Java Full Stack Developer with 1.5 years of hands-on experience delivering production-ready applications using {skills}. "
-        "Built Kafka-based IoT data pipelines processing 100K+ events/day and led R&D on Agentic AI/MCP architecture. "
-        "Thrive in fast-paced startup environments — quick learner, self-driven, and comfortable owning features end-to-end at {company}."
-    ),
-    "default": (
-        "Dedicated Java Full Stack Developer with 1.5 years of industry experience in designing and developing robust, scalable applications using {skills}. "
-        "Delivered measurable impact: 25% latency reduction, 100K+ daily IoT events via Kafka, and multi-tenant systems for 40+ clients. "
-        "Eager to contribute strong technical fundamentals and problem-solving skills to the team at {company}."
-    ),
-}
-
-EMAIL_TEMPLATES = {
-    "walkin": (
-        "Dear Hiring Team,\n\n"
-        "I am writing to express my keen interest in the {title} walk-in drive at {company}. "
-        "I am a Java Full Stack Developer with 1.5 years of experience at Trinity Mobility (Bengaluru), "
-        "specialising in {top_skills}.\n\n"
-        "Key highlights:\n"
-        "• Managed Kafka/Redis pipelines processing 100,000+ IoT events daily\n"
-        "• Built REST APIs & multi-tenant Spring Boot apps for 40+ enterprise clients\n"
-        "• Reduced page load latency by 25% through systematic debugging\n"
-        "• CGPA 8.96/10 | B.E. CSE, 2024 batch\n\n"
-        "I will be attending the walk-in with my resume and supporting documents. "
-        "Looking forward to the opportunity.\n\n"
-        "Best regards,\nRavikumar N\n+91 9686906521 | rn5127610@gmail.com\ngithub.com/ravigithubcse"
-    ),
-    "mnc": (
-        "Dear Hiring Manager,\n\n"
-        "I am applying for the {title} position at {company}. "
-        "With 1.5 years of experience building enterprise Java applications at Trinity Mobility, Bengaluru, "
-        "I bring strong expertise in {top_skills}.\n\n"
-        "Notable achievements:\n"
-        "• Kafka-based IoT pipeline handling 100K+ data points/day\n"
-        "• Multi-tenant Spring Boot application for 40+ enterprise clients\n"
-        "• 25% reduction in page load latency through optimisation\n"
-        "• Led R&D on Agentic AI & MCP architecture (2026)\n\n"
-        "Please find my tailored resume attached. I would welcome the opportunity to discuss how I can contribute to {company}.\n\n"
-        "Best regards,\nRavikumar N\n+91 9686906521 | rn5127610@gmail.com\ngithub.com/ravigithubcse"
-    ),
-    "default": (
-        "Dear Hiring Team,\n\n"
-        "I am excited to apply for the {title} role at {company}. "
-        "I am a Java Full Stack Developer with 1.5 years of production experience in {top_skills}, "
-        "recently at Trinity Mobility Pvt. Ltd., Bengaluru.\n\n"
-        "I have hands-on experience with:\n"
-        "• Spring Boot 3.x REST APIs & Microservices\n"
-        "• Angular 15/17 frontend development\n"
-        "• Kafka, Redis, Docker, Jenkins CI/CD\n"
-        "• PostgreSQL, MongoDB, JPA/Hibernate\n\n"
-        "Attached is my resume tailored for this role. I look forward to hearing from you.\n\n"
-        "Best regards,\nRavikumar N\n+91 9686906521 | rn5127610@gmail.com\ngithub.com/ravigithubcse"
-    ),
+    "java":           ROY["skills"]["backend"],
+    "spring":         ROY["skills"]["backend"],
+    "spring boot":    ROY["skills"]["backend"],
+    "spring security":ROY["skills"]["backend"],
+    "spring cloud":   ROY["skills"]["backend"],
+    "microservices":  ROY["skills"]["backend"],
+    "rest api":       ROY["skills"]["backend"],
+    "restful":        ROY["skills"]["backend"],
+    "jpa":            ROY["skills"]["backend"],
+    "hibernate":      ROY["skills"]["backend"],
+    "angular":        ROY["skills"]["frontend"],
+    "typescript":     ROY["skills"]["frontend"],
+    "rxjs":           ROY["skills"]["frontend"],
+    "html":           ROY["skills"]["frontend"],
+    "css":            ROY["skills"]["frontend"],
+    "websocket":      ROY["skills"]["frontend"],
+    "kafka":          ROY["skills"]["data"],
+    "redis":          ROY["skills"]["data"],
+    "postgresql":     ROY["skills"]["data"],
+    "sql":            ROY["skills"]["data"],
+    "docker":         ROY["skills"]["devops"],
+    "jenkins":        ROY["skills"]["devops"],
+    "ci/cd":          ROY["skills"]["devops"],
+    "git":            ROY["skills"]["devops"],
+    "github actions": ROY["skills"]["devops"],
+    "openai":         ROY["skills"]["ai"],
+    "gpt":            ROY["skills"]["ai"],
+    "mcp":            ROY["skills"]["ai"],
+    "junit":          ROY["skills"]["testing"],
+    "mockito":        ROY["skills"]["testing"],
+    "swagger":        ROY["skills"]["testing"],
+    "postman":        ROY["skills"]["testing"],
+    "jwt":            ROY["skills"]["backend"],
+    "agile":          ["Agile (JIRA, Scrum, Sprint planning)"],
+    "jira":           ["JIRA", "Agile", "Sprint planning"],
 }
 
 
-def match_skills(job_text):
-    job_lower = job_text.lower()
+def extract_jd_skills(job):
+    """Extract skills from job title + skills field."""
+    combined = f"{job.get('title','')} {job.get('skills','')}".lower()
     matched = []
-    seen = set()
-    for kw, skill in SKILL_MAP.items():
-        if kw.replace(".", " ") in job_lower or kw in job_lower:
-            if skill not in seen:
-                matched.append(skill)
-                seen.add(skill)
-        if len(matched) >= 6:
-            break
-    if not matched:
-        matched = ["Java 17/18", "Spring Boot 3.x", "Angular 15/17", "REST APIs", "Microservices"]
-    return matched[:6]
+    for kw, skills in SKILL_MAP.items():
+        if kw in combined:
+            matched.extend(skills)
+    return list(dict.fromkeys(matched))[:10]  # unique, max 10
 
 
-def pick_bullets(job_text):
-    job_lower = job_text.lower()
-    bullets = []
-    seen = set()
-    for kw, bullet in BULLET_KEYWORDS.items():
-        if kw == "default":
-            continue
-        if kw in job_lower and bullet not in seen:
-            bullets.append(bullet)
-            seen.add(bullet)
-        if len(bullets) >= 3:
-            break
-    if len(bullets) < 3:
-        for bullet in BULLET_KEYWORDS.values():
-            if bullet not in seen:
-                bullets.append(bullet)
-                seen.add(bullet)
-            if len(bullets) >= 3:
-                break
-    return bullets[:3]
-
-
-def build_summary(job, matched_skills):
-    ct = job.get("company_type", "").lower()
-    company = job.get("company", "your organisation")
-    skills_str = ", ".join(matched_skills[:4])
-    if ct == "mnc":
-        tmpl = SUMMARY_TEMPLATES["mnc"]
-    elif ct == "startup":
-        tmpl = SUMMARY_TEMPLATES["startup"]
-    else:
-        tmpl = SUMMARY_TEMPLATES["default"]
-    return tmpl.format(skills=skills_str, company=company)
-
-
-def build_email(job, matched_skills):
+def cold_email(job, matched_skills):
+    company = (job.get("company","") or "").strip()
+    if not company or company.lower() in ("n/a","na","confidential company",""):
+        company = "your company"
     title   = job.get("title", "Software Developer")
-    company = job.get("company", "your organisation")
-    top_skills = ", ".join(matched_skills[:3])
-    if job.get("is_walkin"):
-        tmpl = EMAIL_TEMPLATES["walkin"]
-    elif job.get("company_type") == "MNC":
-        tmpl = EMAIL_TEMPLATES["mnc"]
-    else:
-        tmpl = EMAIL_TEMPLATES["default"]
-    return tmpl.format(title=title, company=company, top_skills=top_skills)
+    skills_line = ", ".join(matched_skills[:5]) if matched_skills else "Java, Spring Boot, Angular"
+    return {
+        "email_subject": f"Application: {title} | Ravikumar | Java Full Stack | 1.5 YOE | Bengaluru",
+        "email_body": (
+            f"Hi Hiring Team,\n\n"
+            f"I am excited to apply for the {title} role at {company}.\n\n"
+            f"I am a Java Full Stack Developer with 1.5 years of experience at Trinity Mobility, "
+            f"where I built Spring Boot microservices + Angular 15 applications for 40+ enterprise clients, "
+            f"managed Kafka/Redis IoT pipelines processing 100,000+ daily data points, and reduced "
+            f"page load latency by 25%+ via targeted optimisation.\n\n"
+            f"Key skills matching your requirement: {skills_line}.\n\n"
+            f"I have also built several AI/full-stack portfolio projects (SkillDNA AI, AdaptiveFlow AI, "
+            f"SupplySense AI, Agri-Twin AI) — all open-source on GitHub.\n\n"
+            f"I would love to discuss how I can contribute to {company}. "
+            f"My resume and GitHub are attached/linked below.\n\n"
+            f"Best regards,\n"
+            f"Ravikumar\n"
+            f"📧 rn5127610@gmail.com | 📞 +91 9686906521\n"
+            f"🔗 linkedin.com/in/ravikumar2002 | 💻 github.com/ravigithubcse"
+        ),
+    }
 
 
-def resume_html(resume, tailored, job):
-    skills   = resume["skills"]
-    top_bul  = tailored["top_bullets"]
-    all_bul  = resume["experience"][0]["bullets"]
-    rest_bul = [b for b in all_bul if b not in top_bul]
+def build_resume_html(job, matched_skills):
+    """Generate a clean HTML resume tailored for this job."""
+    company = (job.get("company","") or "Hiring Company").strip()
+    if company.lower() in ("n/a","na","confidential company",""):
+        company = "Hiring Company"
+    title = job.get("title","Software Developer")
 
-    bul_html  = "".join(f"<li>{b}</li>" for b in top_bul)
-    rest_html = "".join(f"<li>{b}</li>" for b in rest_bul[:4])
-    cert_html = "".join(f"<li>{c}</li>" for c in resume["certifications"])
+    # Highlight matched skills at top
+    skill_pills = "".join(
+        f'<span style="background:#e8f0fe;color:#1565c0;padding:4px 12px;border-radius:20px;'
+        f'font-size:12px;font-weight:700;margin:3px;display:inline-block">{s}</span>'
+        for s in matched_skills[:8]
+    )
 
-    proj_html = ""
-    for p in resume["projects"]:
-        pb = "".join(f"<li>{b}</li>" for b in p["bullets"])
-        proj_html += f"""<div style="margin-bottom:8px">
-<div style="display:flex;justify-content:space-between;margin-bottom:2px">
-  <span style="font-weight:700">{p["name"]}</span>
-  <span style="color:#777;font-size:9pt">{p["tech"]} | {p["year"]}</span>
-</div><ul style="margin:0">{pb}</ul></div>"""
+    exp_bullets = "".join(
+        f"<li style='margin-bottom:6px;font-size:13px'>{b}</li>"
+        for b in ROY["experience"][0]["bullets"]
+    )
 
-    edu_html = ""
-    for e in resume["education"]:
-        edu_html += f"""<div style="display:flex;justify-content:space-between">
-  <span><strong>{e["degree"]}</strong> — {e["institution"]}</span>
-  <span style="color:#1565c0;font-weight:600">{e["score"]}</span>
-</div><div style="font-size:9pt;color:#666;margin-bottom:4px">{e["duration"]}</div>"""
+    projects_html = ""
+    for p in ROY["projects"][:3]:
+        projects_html += f"""
+<div style="margin-bottom:12px">
+  <div style="font-weight:700;color:#1a237e;font-size:13px">{p["name"]}</div>
+  <div style="font-size:11px;color:#546e7a;margin:2px 0">{p["tech"]}</div>
+  <div style="font-size:12px;color:#37474f">{p["desc"]}</div>
+</div>"""
 
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ravikumar — Resume</title>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:Arial,sans-serif;font-size:10.5pt;color:#111;line-height:1.45;padding:22px 30px}}
-h1{{font-size:20pt;font-weight:700;color:#1a237e}}
-.sub{{font-size:11pt;color:#1565c0;margin-top:2px}}
-.con{{font-size:9.5pt;color:#555;margin-top:4px}}
-h2{{font-size:11pt;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}}
-hr{{border:none;border-top:1.5px solid #1a237e;margin:7px 0}}
-.thr{{border:none;border-top:1px solid #e0e0e0;margin:6px 0}}
-ul{{padding-left:18px}}li{{margin-bottom:2px;font-size:10pt}}
-.sg{{display:grid;grid-template-columns:110px 1fr;gap:2px 8px;font-size:10pt}}
-.sc{{font-weight:600;color:#1a237e}}
-section{{margin-bottom:9px}}
-</style></head><body>
-<div style="text-align:center;margin-bottom:8px">
-<h1>{resume["name"]}</h1>
-<div class="sub">{resume["title"]}</div>
-<div class="con">{resume["email"]} | {resume["phone"]} | {resume["location"]}<br>
-{resume["linkedin"]} | {resume["github"]}</div></div>
-<hr>
-<section><h2>Professional Summary</h2>
-<p style="font-size:10pt;margin-top:3px">{tailored["summary"]}</p></section>
-<div class="thr"></div>
-<section><h2>Technical Skills</h2>
-<div class="sg">
-<span class="sc">Frontend</span><span>{skills["frontend"]}</span>
-<span class="sc">Backend</span><span>{skills["backend"]}</span>
-<span class="sc">API & Tools</span><span>{skills["api_tools"]}</span>
-<span class="sc">Testing/DevOps</span><span>{skills["testing_devops"]}</span>
-<span class="sc">Databases</span><span>{skills["databases"]}</span>
-</div></section>
-<div class="thr"></div>
-<section><h2>Professional Experience</h2>
-<div style="display:flex;justify-content:space-between">
-<span style="font-weight:700;font-size:11pt">Trinity Mobility Pvt. Ltd.</span>
-<span style="color:#666;font-size:9.5pt">Aug 2025 – May 2026</span></div>
-<div style="color:#1565c0;font-size:10.5pt;margin-bottom:3px">Associate Software Engineer | Bengaluru, India</div>
-<ul>{bul_html}{rest_html}</ul></section>
-<div class="thr"></div>
-<section><h2>Projects</h2>{proj_html}</section>
-<div class="thr"></div>
-<section><h2>Education</h2>{edu_html}</section>
-<div class="thr"></div>
-<section><h2>Certifications</h2><ul>{cert_html}</ul></section>
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Ravikumar — Resume for {company}</title></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;max-width:800px;margin:0 auto;
+             padding:30px;color:#222;background:#fff">
+  <div style="border-bottom:3px solid #1565c0;padding-bottom:16px;margin-bottom:20px">
+    <h1 style="margin:0;color:#1565c0;font-size:26px">RAVIKUMAR</h1>
+    <div style="color:#546e7a;font-size:14px;margin-top:4px">
+      Java Full Stack Developer · 1.5 Years Experience · Bengaluru, India
+    </div>
+    <div style="font-size:12px;margin-top:6px;color:#37474f">
+      📧 rn5127610@gmail.com &nbsp;|&nbsp; 📞 +91 9686906521 &nbsp;|&nbsp;
+      🔗 linkedin.com/in/ravikumar2002 &nbsp;|&nbsp; 💻 github.com/ravigithubcse
+    </div>
+  </div>
+
+  <div style="background:#e8f0fe;border-radius:10px;padding:12px 16px;margin-bottom:18px">
+    <div style="font-size:11px;color:#1565c0;font-weight:800;margin-bottom:6px">
+      🎯 SKILLS MATCHING: {title} @ {company}
+    </div>
+    <div>{skill_pills}</div>
+  </div>
+
+  <h2 style="color:#1565c0;font-size:15px;border-bottom:1px solid #e0e0e0;
+             padding-bottom:4px">PROFESSIONAL SUMMARY</h2>
+  <p style="font-size:13px;line-height:1.6;margin-top:8px">{ROY["summary"]}</p>
+
+  <h2 style="color:#1565c0;font-size:15px;border-bottom:1px solid #e0e0e0;
+             padding-bottom:4px">EXPERIENCE</h2>
+  <div style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between">
+      <strong style="font-size:14px">{ROY["experience"][0]["company"]}</strong>
+      <span style="font-size:12px;color:#546e7a">{ROY["experience"][0]["period"]}</span>
+    </div>
+    <div style="color:#546e7a;font-size:13px;margin:3px 0">{ROY["experience"][0]["role"]}</div>
+    <ul style="margin:8px 0;padding-left:20px">{exp_bullets}</ul>
+  </div>
+
+  <h2 style="color:#1565c0;font-size:15px;border-bottom:1px solid #e0e0e0;
+             padding-bottom:4px">PROJECTS</h2>
+  <div style="margin-top:8px">{projects_html}</div>
+
+  <h2 style="color:#1565c0;font-size:15px;border-bottom:1px solid #e0e0e0;
+             padding-bottom:4px">EDUCATION</h2>
+  <p style="font-size:13px;margin-top:8px">{ROY["education"]}</p>
+
+  <h2 style="color:#1565c0;font-size:15px;border-bottom:1px solid #e0e0e0;
+             padding-bottom:4px">CERTIFICATIONS</h2>
+  <ul style="margin-top:8px;padding-left:20px">
+    {"".join(f"<li style='font-size:13px;margin-bottom:4px'>{c}</li>" for c in ROY["certs"])}
+  </ul>
 </body></html>"""
 
 
 def tailor_all():
     print(f"\n{'='*55}")
-    print(f"  FREE RESUME TAILOR (keyword-based)")
-    print(f"  {datetime.now().strftime('%d %b %Y %I:%M %p')}")
+    print(f"  RESUME TAILOR — {datetime.now().strftime('%d %b %Y %I:%M %p')}")
     print(f"{'='*55}\n")
 
-    with open(BASE_RESUME_PATH) as f:
-        resume = json.load(f)
+    if not os.path.exists(JOBS_FILE):
+        print("  ❌ No jobs_found.json found")
+        return []
+
     with open(JOBS_FILE) as f:
         jobs_data = json.load(f)
 
-    priority = (
-        jobs_data.get("walkin_jobs",  []) +
-        jobs_data.get("mnc_jobs",     []) +
-        jobs_data.get("startup_jobs", []) +
-        jobs_data.get("other_jobs",   [])
-    )
-    top = priority[:MAX_TAILOR]
+    all_jobs = jobs_data.get("all_jobs", [])
+
+    # Pick top 5 by ATS score (already sorted)
+    top_jobs = all_jobs[:5]
+    print(f"  🎯 Tailoring for top {len(top_jobs)} ATS-matched jobs...")
 
     results = []
-    for i, job in enumerate(top):
-        title   = job.get("title", "Role")
-        company = job.get("company", "Company")
-        print(f"  [{i+1}/{len(top)}] {title} @ {company}")
-
-        job_text      = f"{title} {company} {job.get('skills','')} {job.get('experience','')}"
-        matched       = match_skills(job_text)
-        bullets       = pick_bullets(job_text)
-        summary       = build_summary(job, matched)
-        email_body    = build_email(job, matched)
-        email_subject = (
-            f"Application: {title} | Java Full Stack | 1.5 YOE | Spring Boot + Angular | Bengaluru"
-        )
-
-        tailored = {
-            "summary":       summary,
-            "top_skills":    matched,
-            "top_bullets":   bullets,
-            "email_subject": email_subject,
-            "email_body":    email_body,
-        }
-
-        html = resume_html(resume, tailored, job)
-        results.append({"job": job, "tailored": tailored, "resume_html": html})
+    for i, job in enumerate(top_jobs):
+        matched = extract_jd_skills(job)
+        email   = cold_email(job, matched)
+        rhtml   = build_resume_html(job, matched)
+        score   = job.get("ats_score", 0)
+        print(f"  [{i+1}] {job.get('title','')} @ "
+              f"{job.get('company','Confidential')[:25]} — ATS: {score}% — "
+              f"{len(matched)} skills matched")
+        results.append({
+            "job":         job,
+            "tailored": {
+                "top_skills":    matched,
+                "email_subject": email["email_subject"],
+                "email_body":    email["email_body"],
+            },
+            "resume_html": rhtml,
+        })
 
     with open(OUTPUT_FILE, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n  ✅ Tailored {len(results)} resumes (FREE — no API used)\n")
+    print(f"\n  ✅ {len(results)} tailored resumes saved to {OUTPUT_FILE}")
     return results
-
 
 if __name__ == "__main__":
     tailor_all()
