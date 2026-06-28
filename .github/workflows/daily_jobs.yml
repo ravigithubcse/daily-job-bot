@@ -1,48 +1,56 @@
-name: "Roy's Daily Job Bot 🤖"
+name: Daily IT Job Digest — Roy
 
 on:
   schedule:
     - cron: '30 2 * * *'   # 8:00 AM IST = 2:30 AM UTC every day
-  workflow_dispatch:
+  workflow_dispatch:         # Allow manual trigger
 
 jobs:
-  daily-job-digest:
-    name: Scrape → Filter → Tailor → Email
+  run-job-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python 3.11
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: 📦 Install dependencies
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 🚀 Run Job Bot (Scrape → Filter → Tailor → Email)
+      - name: Run Job Bot Pipeline
         env:
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/run_all.py
+        run: |
+          echo "🤖 Roy Job Bot v3.0 starting..."
+          echo "📅 $(date '+%A %d %B %Y — %I:%M %p IST')"
+          echo "🎯 ATS-matched IT jobs | Bengaluru only | 0-2 YOE | 13 platforms"
+          python scripts/run_all.py
 
-      - name: 📊 Upload email preview
+      - name: Upload email preview
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: email-preview-run-${{ github.run_number }}
+          name: email-preview-${{ github.run_number }}
           path: email_preview.html
           retention-days: 7
 
-      - name: 📋 Upload jobs data
+      - name: Upload jobs JSON
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jobs-data-run-${{ github.run_number }}
+          name: jobs-found-${{ github.run_number }}
           path: jobs_found.json
-          retention-days: 7
+          retention-days: 3
