@@ -1,62 +1,56 @@
 #!/usr/bin/env python3
 """
-Roy's Job Bot — Main Orchestrator
-100% FREE — No paid APIs
-Pipeline: Scrape → Filter (dedup+active) → Tailor → Email
-Scheduled daily at 7:00 AM IST via GitHub Actions
+Roy's Job Bot — run_all.py
+Orchestrates: scrape → tailor → send email
 """
-
-import sys, os, subprocess, json
+import subprocess, sys, os, json
 from datetime import datetime
 
-
-def run(name, script):
+def run(script, label):
     print(f"\n{'─'*55}")
-    print(f"  ▶ {name}")
+    print(f"  ▶  {label}")
     print(f"{'─'*55}")
-    result = subprocess.run([sys.executable, f"scripts/{script}"])
-    ok = result.returncode == 0
-    print(f"  {'✅' if ok else '⚠'} {name} {'done' if ok else 'completed with warnings'}")
-    return ok
-
+    result = subprocess.run([sys.executable, f"scripts/{script}"],
+                            capture_output=False, text=True)
+    if result.returncode != 0:
+        print(f"  ⚠  {label} exited with code {result.returncode}")
+    return result.returncode == 0
 
 def main():
     print(f"\n{'═'*55}")
-    print(f"  🤖 ROY'S JOB BOT  (100% FREE)")
-    print(f"  {datetime.now().strftime('%A, %d %B %Y — %I:%M %p IST')}")
-    print(f"  Java Full Stack | 0-2 YOE | Bengaluru")
+    print(f"  🤖 ROY'S JOB BOT v4.0")
+    print(f"  📅 {datetime.now().strftime('%A %d %B %Y — %I:%M %p UTC')}")
     print(f"{'═'*55}")
 
-    # Step 1: Scrape all platforms
-    run("Scraper (Naukri, Instahire, LinkedIn, Wellfound, Internshala, TimesJobs, Freshersworld, Shine, Indeed, Glassdoor)", "scrape_jobs.py")
+    # Step 1: Scrape jobs
+    ok1 = run("scrape_jobs.py", "Step 1 — Scraping 13 platforms...")
 
-    # Step 2: Filter — remove duplicates + inactive jobs
-    run("Filter (Remove duplicates this week + dead job links)", "job_tracker.py")
-
-    # Step 3: Tailor resumes (free keyword-based)
-    run("Resume Tailor (free keyword-based, no API)", "tailor_resume.py")
-
-    # Step 4: Send email digest
-    run("Email Digest Sender (Gmail)", "send_email.py")
-
-    # Print final count
-    try:
+    # Check what was found
+    if os.path.exists("jobs_found.json"):
         with open("jobs_found.json") as f:
             data = json.load(f)
-        stats = data.get("filter_stats", {})
-        print(f"\n{'═'*55}")
-        print(f"  📊 Final Report:")
-        print(f"     Scraped today   : {stats.get('total_scraped', data.get('total_found','?'))}")
-        print(f"     Duplicates removed: {stats.get('duplicates_removed', 0)}")
-        print(f"     Inactive removed  : {stats.get('inactive_removed', 0)}")
-        print(f"     ✅ Sent to email : {stats.get('final_sent', data.get('total_found','?'))} fresh active jobs")
-    except Exception:
-        pass
+        total = data.get("total_found", 0)
+        print(f"\n  📊 Jobs found: {total}")
+        print(f"  🚶 Walk-ins  : {data.get('walkin_count', 0)}")
+        print(f"  🏢 MNCs      : {data.get('mnc_count', 0)}")
+        print(f"  🚀 Startups  : {data.get('startup_count', 0)}")
+    else:
+        print("  ⚠  jobs_found.json not created — scraper may have failed")
+        total = 0
+
+    # Step 2: Tailor resumes
+    ok2 = run("tailor_resume.py", "Step 2 — Tailoring resumes for top jobs...")
+
+    # Step 3: Send email
+    ok3 = run("send_email.py", "Step 3 — Sending email digest...")
 
     print(f"\n{'═'*55}")
-    print(f"  ✅ Done! Check: rn5127610@gmail.com")
+    print(f"  ✅ Pipeline complete!")
+    print(f"  Jobs found : {total}")
+    print(f"  Scraper    : {'OK' if ok1 else 'FAILED'}")
+    print(f"  Tailor     : {'OK' if ok2 else 'FAILED'}")
+    print(f"  Email      : {'OK' if ok3 else 'FAILED'}")
     print(f"{'═'*55}\n")
-
 
 if __name__ == "__main__":
     main()
