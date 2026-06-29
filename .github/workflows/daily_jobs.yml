@@ -28,6 +28,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate Gmail secrets
+        env:
+          GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          echo "=== GMAIL SECRET VALIDATION ==="
+          if [ -z "$GMAIL_SENDER" ]; then
+            echo "❌ GMAIL_SENDER is NOT SET"
+          else
+            echo "✅ GMAIL_SENDER = $GMAIL_SENDER"
+          fi
+          if [ -z "$GMAIL_APP_PASSWORD" ]; then
+            echo "❌ GMAIL_APP_PASSWORD is NOT SET — email WILL fail silently"
+            echo "   Fix: GitHub repo → Settings → Secrets → Actions → GMAIL_APP_PASSWORD"
+          else
+            LEN=${#GMAIL_APP_PASSWORD}
+            echo "✅ GMAIL_APP_PASSWORD is SET ($LEN chars)"
+            if [ "$LEN" -ne 16 ]; then
+              echo "⚠  WARNING: Gmail App Passwords are exactly 16 chars — got $LEN"
+              echo "   Regenerate at: myaccount.google.com/apppasswords"
+            fi
+          fi
+
       - name: Run Job Bot Pipeline
         env:
           GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
@@ -35,7 +58,7 @@ jobs:
           GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🤖 Roy Job Bot v3.0 starting..."
-          echo "📅 $(date '+%A %d %B %Y — %I:%M %p IST')"
+          echo "📅 $(date '+%A %d %B %Y — %I:%M %p UTC')"
           echo "🎯 ATS-matched IT jobs | Bengaluru only | 0-2 YOE | 13 platforms"
           python scripts/run_all.py
 
