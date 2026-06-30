@@ -150,11 +150,51 @@ def is_walkin(text):
     return any(w in (text or "").lower() for w in WALKIN_KW)
 
 def extract_contact(text):
+    """Extract recruiter email and phone from any text/HTML."""
+    bad = ["noreply","no-reply","donotreply","support@","info@",
+           "admin@","feedback@","privacy@","legal@","hello@website"]
     emails = [e for e in EMAIL_RE.findall(text or "")
-              if not any(b in e.lower() for b in ["noreply","no-reply","support@","info@"])]
+              if not any(b in e.lower() for b in bad)
+              and len(e) < 60]
     phones = PHONE_RE.findall(text or "")
     return {"recruiter_email": emails[0] if emails else "",
             "recruiter_phone": phones[0] if phones else ""}
+
+def fetch_detail_contact(url, base_headers=None):
+    """Fetch job detail page and extract recruiter contact info."""
+    if not url or url == "#": return {}, ""
+    try:
+        h = base_headers or HEADERS_CHROME
+        resp = safe_get(url, h, timeout=12, retries=1)
+        if not resp: return {}, ""
+        text = resp.text
+        soup = BeautifulSoup(text, "html.parser")
+        # Try structured data first
+        for scr in soup.find_all("script", type="application/ld+json"):
+            try:
+                data = json.loads(scr.string or "")
+                lst  = data if isinstance(data,list) else [data]
+                for jb in lst:
+                    if not isinstance(jb,dict): continue
+                    email = (jb.get("email","") or
+                             jb.get("applicationContact",{}).get("email","") or
+                             jb.get("hiringOrganization",{}).get("email",""))
+                    phone = (jb.get("telephone","") or
+                             jb.get("applicationContact",{}).get("telephone",""))
+                    if email or phone:
+                        return {"recruiter_email": email, "recruiter_phone": phone}, ""
+            except: pass
+        # Scan visible text
+        contact = extract_contact(soup.get_text(" ", strip=True))
+        desc = ""
+        # Try to get description for ATS scoring
+        desc_el = (soup.find(["div","section"], class_=re.compile(r"description|jd|job-desc|details")) or
+                   soup.find("div", id=re.compile(r"description|jd|job")))
+        if desc_el:
+            desc = desc_el.get_text(" ", strip=True)[:2000]
+        return contact, desc
+    except: return {}, ""
+
 
 def make_job(source, title, company, location, link,
              posted="Today", experience="0-2 years (Fresher)",
@@ -268,7 +308,14 @@ def scrape_linkedin():
                     link = ("https://www.linkedin.com"+href.split("?")[0]
                             if href.startswith("/") else href)
                     posted = de.get("datetime","Today") if de else "Today"
-                    jobs.append(make_job("LinkedIn", title, company, loc, link, posted=posted))
+                    # Fetch detail page for recruiter contact (top 5 only to save time)
+                    contact, detail_desc = {}, ""
+                    if len(jobs) < 5 and link and "linkedin.com" in link:
+                        contact, detail_desc = fetch_detail_contact(link)
+                        time.sleep(1)
+                    jobs.append(make_job("LinkedIn", title, company, loc, link,
+                                         posted=posted, description=detail_desc,
+                                         **contact))
                 except: continue
             time.sleep(2)
         except Exception as e:
@@ -334,10 +381,13 @@ def scrape_internshala():
                     href = ae["href"] if ae else ""
                     link = (f"https://internshala.com{href}"
                             if href.startswith("/") else href) or url
+                    ct = card.get_text(" ", strip=True)
+                    contact = extract_contact(ct)
                     jobs.append(make_job("Internshala", title, company,
                                          "Bengaluru, India", link,
                                          experience="Fresher / 0-1 year",
-                                         salary=se.get_text(strip=True) if se else ""))
+                                         salary=se.get_text(strip=True) if se else "",
+                                         **contact))
                 except: continue
             time.sleep(2)
         except Exception as e:
@@ -404,10 +454,13 @@ def scrape_foundit():
                     href = ae["href"] if ae else ""
                     link = (f"https://www.foundit.in{href}"
                             if href.startswith("/") else href) or url
+                    ct = card.get_text(" ", strip=True)
+                    contact = extract_contact(ct)
                     jobs.append(make_job("Foundit", title, company,
                                          "Bengaluru, India", link,
                                          experience=exp_txt or "0-2 years (Fresher)",
-                                         salary=se.get_text(strip=True) if se else ""))
+                                         salary=se.get_text(strip=True) if se else "",
+                                         **contact))
                 except: continue
             time.sleep(2)
         except Exception as e:
@@ -455,12 +508,16 @@ def scrape_naukri():
                 walkin  = is_walkin(title+desc)
                 if not title or not is_relevant(title): continue
                 if not is_fresher(exp_txt): continue
+                contact = extract_contact(desc)
+                # Walk-in jobs often have email/phone in description
+                if not contact["recruiter_email"] and not contact["recruiter_phone"]:
+                    contact = extract_contact(jb.get("footerPlaceholderLabel","") + " " + desc)
                 jobs.append(make_job("Naukri", title, company,
                                      "Bengaluru, India", link,
                                      experience=exp_txt or "0-2 years (Fresher)",
                                      skills=skills, salary=salary,
                                      walkin=walkin, description=desc,
-                                     **extract_contact(desc)))
+                                     **contact))
             time.sleep(2)
         except Exception as e:
             print(f"    Naukri API err ({kw}): {e}")
@@ -954,6 +1011,84 @@ def scrape_workindia():
 # ════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ════════════════════════════════════════════════════════════════════════════
+
+def scrape_timesjobs():
+    """TimesJobs — walk-in focused, try RSS + HTML."""
+    jobs = []
+    print("  🔴 TimesJobs (walk-ins)...")
+    urls = [
+        "https://www.timesjobs.com/candidate/job-search.html?searchType=personalizedSearch"
+        "&from=submit&txtKeywords=java+developer&txtLocation=bengaluru"
+        "&cboWorkExp1=0&cboWorkExp2=2&sequence=1&postWeek=1",
+        "https://www.timesjobs.com/candidate/job-search.html?searchType=personalizedSearch"
+        "&from=submit&txtKeywords=walk+in+java+bengaluru&txtLocation=bengaluru"
+        "&cboWorkExp1=0&cboWorkExp2=2&postWeek=1",
+        "https://www.timesjobs.com/candidate/job-search.html?searchType=personalizedSearch"
+        "&from=submit&txtKeywords=spring+boot+developer&txtLocation=bengaluru"
+        "&cboWorkExp1=0&cboWorkExp2=2&postWeek=1",
+    ]
+    for url in urls:
+        try:
+            resp = safe_get(url, HEADERS_CHROME)
+            if not resp: continue
+            soup  = BeautifulSoup(resp.text, "html.parser")
+            # JSON-LD
+            for scr in soup.find_all("script", type="application/ld+json"):
+                try:
+                    data = json.loads(scr.string or "")
+                    lst  = data if isinstance(data,list) else [data]
+                    for jb in lst:
+                        if not isinstance(jb,dict): continue
+                        title   = jb.get("title","")
+                        company = jb.get("hiringOrganization",{}).get("name","")
+                        link    = jb.get("url","")
+                        desc    = jb.get("description","")
+                        exp_txt = str(jb.get("experienceRequirements",""))
+                        if not title or not is_relevant(title): continue
+                        if not is_fresher(exp_txt): continue
+                        walkin  = is_walkin(title + " " + desc)
+                        contact = extract_contact(desc)
+                        src     = "TimesJobs Walk-In" if walkin else "TimesJobs"
+                        jobs.append(make_job(src, title, company,
+                                             "Bengaluru, India", link,
+                                             experience=exp_txt or "0-2 years (Fresher)",
+                                             walkin=walkin, description=desc, **contact))
+                except: pass
+            # HTML cards
+            cards = (soup.find_all("li", class_=re.compile(r"clearfix job-bx")) or
+                     soup.find_all("div", class_=re.compile(r"job-bx|jobTuple")))
+            for card in cards[:10]:
+                try:
+                    te = card.find("h2")
+                    ce = card.find("h3", class_=re.compile(r"joblist-comp-name"))
+                    ae = card.find("a", href=re.compile(r"timesjobs\.com"))
+                    se = card.find("span", class_=re.compile(r"srp-skills"))
+                    ee = card.find("ul",   class_=re.compile(r"top-jd-dtl"))
+                    de = card.find("span", class_=re.compile(r"sim-posted"))
+                    full = card.get_text(" ", strip=True)
+                    title   = (te.get_text(strip=True) if te else "").strip()
+                    company = (ce.get_text(strip=True) if ce else "").strip()
+                    exp_txt = (ee.get_text(strip=True) if ee else "")
+                    skills  = (se.get_text(strip=True) if se else "")
+                    if not title or not is_relevant(title): continue
+                    if not is_fresher(exp_txt): continue
+                    walkin  = is_walkin(full + title)
+                    contact = extract_contact(full)
+                    src     = "TimesJobs Walk-In" if walkin else "TimesJobs"
+                    href    = ae["href"] if ae else url
+                    jobs.append(make_job(src, title, company,
+                                         "Bengaluru, India", href,
+                                         posted=de.get_text(strip=True) if de else "Today",
+                                         experience=exp_txt or "0-2 years (Fresher)",
+                                         skills=skills, walkin=walkin, **contact))
+                except: continue
+            time.sleep(2)
+        except Exception as e:
+            print(f"    TimesJobs err: {e}")
+    wi = sum(1 for j in jobs if j["is_walkin"])
+    print(f"    ✓ {len(jobs)} jobs ({wi} walk-ins)")
+    return dedup(jobs)
+
 def scrape_all_jobs():
     print(f"\n{'='*60}")
     print(f"  ROY'S JOB SCRAPER v5.0")
@@ -975,6 +1110,7 @@ def scrape_all_jobs():
         ("Naukricity/iimjobs",scrape_naukricity),
         ("Apna.co",          scrape_apna),
         ("WorkIndia",        scrape_workindia),
+        ("TimesJobs",        scrape_timesjobs),
     ]
     source_counts = {}
     for name, fn in scrapers:
@@ -987,6 +1123,27 @@ def scrape_all_jobs():
             source_counts[name] = 0
 
     unique = dedup(all_jobs)
+
+    # Post-process: fetch detail pages for walk-in jobs missing contact info
+    print("  📞 Fetching recruiter contacts for walk-in jobs...")
+    wi_no_contact = [j for j in unique
+                     if j.get("is_walkin")
+                     and not j.get("recruiter_email")
+                     and not j.get("recruiter_phone")
+                     and j.get("link","#") != "#"]
+    print(f"    Walk-ins without contact: {len(wi_no_contact)}")
+    for job in wi_no_contact[:8]:   # max 8 detail fetches
+        try:
+            contact, desc = fetch_detail_contact(job["link"])
+            if contact.get("recruiter_email"):
+                job["recruiter_email"] = contact["recruiter_email"]
+            if contact.get("recruiter_phone"):
+                job["recruiter_phone"] = contact["recruiter_phone"]
+            if desc and not job.get("description"):
+                job["ats_score"] = ats_score(job["title"], desc, job.get("skills",""))
+            time.sleep(1.5)
+        except: pass
+
     unique.sort(key=lambda x: x.get("ats_score",0), reverse=True)
 
     walkin_jobs  = [j for j in unique if j.get("is_walkin")]
