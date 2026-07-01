@@ -34,9 +34,9 @@ SOURCE_COLORS = {
     "Adzuna India":       "#d84315",
 }
 
-PLATFORMS = ["Naukri","LinkedIn","Indeed","TimesJobs","Shine","Glassdoor",
-             "Freshersworld","Wellfound","Internshala","Instahire",
-             "Cutshort","Hirist","Adzuna"]
+PLATFORMS = ["LinkedIn","Internshala","Naukri","Indeed RSS",
+             "TimesJobs RSS","Shine RSS","Freshersworld RSS","Glassdoor RSS",
+             "Instahire","Cutshort","Hirist","Wellfound"]
 
 
 def load():
