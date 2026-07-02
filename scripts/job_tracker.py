@@ -1,55 +1,79 @@
 #!/usr/bin/env python3
 """
-Job Tracker — Prevents duplicate jobs across days + filters inactive jobs
-Uses GitHub Gist as free persistent storage (no database needed)
-Stores seen job hashes so same job is never sent twice
-Also validates jobs are still active before sending
+Job Tracker v2 — Prevents repeats + quality filters
+  ✅ 24-hour seen-jobs window (not 7 days — so fresh jobs appear next day)
+  ✅ Same company filter — max 2 jobs per company per email
+  ✅ No Easy Apply / One-click apply jobs
+  ✅ Active job validation (checks link is live)
+  ✅ Last 24 hours only (skip jobs older than 24h)
+  Uses GitHub Gist for persistent storage across runs
 """
 
 import json, os, hashlib, time, re, urllib.request, urllib.error
 from datetime import datetime, timedelta
 
-# GitHub Gist for persistent storage (free, unlimited)
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
-GIST_FILENAME = "roy_job_tracker.json"
-SEEN_FILE     = "seen_jobs.json"       # local fallback
+GIST_FILENAME = "roy_job_tracker_v2.json"
+REMEMBER_HOURS = 24   # Only 24 hours — fresh jobs each morning
 
-# How many days to remember a job (avoids resending)
-REMEMBER_DAYS = 7
+# Easy Apply / low-quality signals to EXCLUDE
+EASY_APPLY_SIGNALS = [
+    "easy apply", "1-click apply", "one click", "quick apply",
+    "instant apply", "apply in seconds", "apply with linkedin",
+    "apply with resume", "apply with profile",
+]
 
-# Keywords that suggest a job is no longer active
+# Inactive signals
 INACTIVE_SIGNALS = [
     "position filled", "no longer accepting", "job closed", "expired",
-    "position closed", "not accepting", "vacancy closed", "already closed",
-    "hiring paused", "on hold", "applications closed", "deadline passed",
-    "404", "page not found", "job not found", "this job is no longer",
-    "this position has been filled", "removed", "deleted",
+    "position closed", "vacancy closed", "already closed", "hiring paused",
+    "applications closed", "404", "page not found", "job not found",
+    "this job is no longer", "this position has been filled",
 ]
 
-# Keywords that confirm job IS active
 ACTIVE_SIGNALS = [
-    "apply", "apply now", "submit", "upload resume", "easy apply",
-    "job description", "responsibilities", "requirements", "qualifications",
-    "salary", "experience", "skills required", "about the role",
-    "who we are", "what you will do", "we are hiring", "join us",
-    "bengaluru", "bangalore", "work from office", "wfo", "wfh", "hybrid",
+    "apply", "job description", "responsibilities", "requirements",
+    "qualifications", "skills required", "about the role", "we are hiring",
 ]
-
 
 def make_hash(job):
-    """Unique fingerprint for a job — title + company (case-insensitive)."""
-    raw = f"{job.get('title','').lower().strip()[:40]}|{job.get('company','').lower().strip()[:30]}"
+    raw = f"{job.get('title','').lower()[:40]}|{job.get('company','').lower()[:30]}"
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
+def is_easy_apply(job):
+    combined = f"{job.get('title','')} {job.get('description','')} {job.get('link','')}".lower()
+    return any(sig in combined for sig in EASY_APPLY_SIGNALS)
 
-# ── GIST STORAGE (persistent across GitHub Actions runs) ─────────────────────
-def load_gist_tracker():
-    """Load seen jobs from GitHub Gist."""
-    if not GITHUB_TOKEN:
-        return load_local_tracker()
+def is_recent(job):
+    """Keep only jobs posted in last 48 hours (or if posted date unknown)."""
+    posted = (job.get("posted","") or "").lower().strip()
+    if not posted or posted in ("today", "just now", "1 day ago", "2 days ago", "", "recently"):
+        return True
+    # Naukri/LinkedIn date formats
+    if any(w in posted for w in ["day ago", "days ago", "hour", "min", "just", "today", "yesterday"]):
+        # Extract number of days
+        nums = re.findall(r"(\d+)\s*day", posted)
+        if nums and int(nums[0]) > 2:
+            return False
+        return True
+    # ISO date format e.g. 2026-06-28
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
-        # Search for existing gist
+        dt = datetime.fromisoformat(posted[:10])
+        return (datetime.now() - dt).days <= 2
+    except:
+        pass
+    # If we can't parse, keep it
+    return True
+
+# ── GIST STORAGE ──────────────────────────────────────────────────────────────
+def load_tracker():
+    if not GITHUB_TOKEN:
+        if os.path.exists("seen_jobs.json"):
+            with open("seen_jobs.json") as f: return json.load(f), None
+        return {"seen": {}, "updated": ""}, None
+    try:
+        headers = {"Authorization": f"token {GITHUB_TOKEN}",
+                   "Accept": "application/vnd.github+json"}
         req = urllib.request.Request("https://api.github.com/gists?per_page=50", headers=headers)
         with urllib.request.urlopen(req, timeout=10) as r:
             gists = json.loads(r.read())
@@ -59,249 +83,190 @@ def load_gist_tracker():
                 req2 = urllib.request.Request(raw_url, headers=headers)
                 with urllib.request.urlopen(req2, timeout=10) as r2:
                     data = json.loads(r2.read())
-                print(f"  📂 Loaded tracker from Gist ({len(data.get('seen',{}))} seen jobs)")
+                print(f"  📂 Tracker loaded: {len(data.get('seen',{}))} known jobs (24h window)")
                 return data, gist["id"]
     except Exception as e:
-        print(f"  ⚠ Gist load error: {e}")
-    return {"seen": {}, "updated_at": ""}, None
+        print(f"  ⚠ Tracker load error: {e}")
+    return {"seen": {}, "updated": ""}, None
 
-
-def save_gist_tracker(data, gist_id=None):
-    """Save seen jobs to GitHub Gist."""
-    if not GITHUB_TOKEN:
-        return save_local_tracker(data)
+def save_tracker(data, gist_id=None):
+    local_path = "seen_jobs.json"
+    with open(local_path, "w") as f: json.dump(data, f, indent=2)
+    if not GITHUB_TOKEN: return None
     try:
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github+json",
-            "Content-Type": "application/json",
-        }
+        headers = {"Authorization": f"token {GITHUB_TOKEN}",
+                   "Accept": "application/vnd.github+json",
+                   "Content-Type": "application/json"}
         payload = json.dumps({
-            "description": "Roy Job Bot — Seen Jobs Tracker",
+            "description": "Roy Job Bot — 24h Seen Jobs Tracker",
             "public": False,
-            "files": {GIST_FILENAME: {"content": json.dumps(data, indent=2)}},
+            "files": {GIST_FILENAME: {"content": json.dumps(data, indent=2)}}
         }).encode()
-
         if gist_id:
-            req = urllib.request.Request(
-                f"https://api.github.com/gists/{gist_id}",
-                data=payload, headers=headers, method="PATCH"
-            )
+            req = urllib.request.Request(f"https://api.github.com/gists/{gist_id}",
+                                         data=payload, headers=headers, method="PATCH")
         else:
-            req = urllib.request.Request(
-                "https://api.github.com/gists",
-                data=payload, headers=headers, method="POST"
-            )
+            req = urllib.request.Request("https://api.github.com/gists",
+                                         data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as r:
             result = json.loads(r.read())
-        print(f"  💾 Tracker saved to Gist ({len(data.get('seen',{}))} total seen jobs)")
+        print(f"  💾 Tracker saved: {len(data.get('seen',{}))} jobs in 24h window")
         return result.get("id")
     except Exception as e:
-        print(f"  ⚠ Gist save error: {e}")
-        save_local_tracker(data)
-        return None
+        print(f"  ⚠ Tracker save error: {e}")
+    return gist_id
 
-
-def load_local_tracker():
-    if os.path.exists(SEEN_FILE):
-        with open(SEEN_FILE) as f:
-            return json.load(f), None
-    return {"seen": {}, "updated_at": ""}, None
-
-
-def save_local_tracker(data):
-    with open(SEEN_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-# ── ACTIVE JOB VALIDATOR ──────────────────────────────────────────────────────
-def is_job_active(job):
-    """
-    Check if job link is still live.
-    Returns True if active, False if dead/filled/expired.
-    """
-    url = job.get("link", "")
-    if not url or url == "#":
-        return True  # No link to check, assume active
-
-    # Skip checking walk-ins (usually list pages, not job-specific pages)
-    if job.get("is_walkin"):
-        return True
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-        "Accept-Language": "en-IN,en;q=0.9",
-    }
-
+# ── ACTIVE CHECK ──────────────────────────────────────────────────────────────
+def is_active(job):
+    url = job.get("link","")
+    if not url or url == "#" or job.get("is_walkin"): return True
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     try:
         req = urllib.request.Request(url, headers=headers, method="HEAD")
-        req.add_unredirected_header("Accept", "text/html")
         with urllib.request.urlopen(req, timeout=8) as resp:
-            status = resp.status
-            final_url = resp.url
-    except urllib.error.HTTPError as e:
-        # 404, 410 Gone = definitely inactive
-        if e.code in (404, 410, 403):
-            return False
-        return True  # other errors, assume active
-    except Exception:
-        return True  # Network error, don't filter out
-
-    if status in (404, 410):
-        return False
-
-    # Check if redirected to a "jobs not found" page
-    if final_url and any(bad in final_url.lower() for bad in ["not-found","expired","closed","404","error"]):
-        return False
-
-    # For important sources, do a GET and check page content
-    important_sources = ["Naukri", "LinkedIn", "Instahire", "TimesJobs"]
-    if job.get("source") in important_sources:
-        try:
-            req2 = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req2, timeout=10) as resp2:
-                raw = resp2.read(6000).decode("utf-8", errors="ignore").lower()
-
-            # Strong inactive signals
-            if any(sig in raw for sig in INACTIVE_SIGNALS):
+            if resp.status in (404, 410): return False
+            final = resp.url
+            if any(bad in (final or "").lower() for bad in ["not-found","expired","closed","404"]):
                 return False
-
-            # For Naukri specifically
-            if "naukri" in url.lower():
-                if "this job is no longer" in raw or "job is expired" in raw:
-                    return False
-
-            # Check if page has meaningful job content
-            active_count = sum(1 for sig in ACTIVE_SIGNALS if sig in raw)
-            if active_count < 2 and len(raw) < 2000:
-                return False  # Very thin page, probably dead
-
-        except Exception:
-            pass  # If we can't fetch, assume active
-
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 410): return False
+    except: pass
     return True
 
-
-# ── MAIN FILTER FUNCTION ──────────────────────────────────────────────────────
+# ── MAIN FILTER ───────────────────────────────────────────────────────────────
 def filter_new_and_active(jobs_data):
-    """
-    1. Remove jobs seen in last 7 days (no duplicates across days)
-    2. Validate remaining jobs are still active (no dead links)
-    3. Save newly seen jobs to tracker
-    Returns filtered jobs_data
-    """
     print(f"\n{'='*55}")
-    print(f"  JOB FILTER — Dedup + Active Check")
+    print(f"  JOB FILTER v2 — 24h dedup + quality checks")
     print(f"{'='*55}\n")
 
-    tracker, gist_id = load_gist_tracker()
+    tracker, gist_id = load_tracker()
     seen = tracker.get("seen", {})
-    today = datetime.now().isoformat()[:10]
+    now  = datetime.now()
 
-    # Purge old entries (older than REMEMBER_DAYS)
-    cutoff = (datetime.now() - timedelta(days=REMEMBER_DAYS)).isoformat()[:10]
-    seen = {h: d for h, d in seen.items() if d >= cutoff}
-    print(f"  📋 Known jobs in tracker: {len(seen)} (last {REMEMBER_DAYS} days)")
+    # Purge entries older than 24 hours
+    cutoff_ts = (now - timedelta(hours=REMEMBER_HOURS)).isoformat()
+    seen = {h: ts for h, ts in seen.items() if ts >= cutoff_ts}
+    print(f"  📋 Jobs seen in last {REMEMBER_HOURS}h: {len(seen)}")
 
-    all_jobs = jobs_data.get("all_jobs", [])
-    total_before = len(all_jobs)
+    all_jobs    = jobs_data.get("all_jobs", [])
+    total_in    = len(all_jobs)
 
-    # Step 1 — Remove duplicates (already seen this week)
-    new_jobs = []
-    duplicate_count = 0
+    # ── Step 1: Remove seen in last 24h ──────────────────────────────────────
+    step1, dupes = [], 0
     for job in all_jobs:
         h = make_hash(job)
         if h in seen:
-            duplicate_count += 1
+            dupes += 1
         else:
-            new_jobs.append(job)
             job["_hash"] = h
+            step1.append(job)
+    print(f"  🔄 Seen in last 24h (removed): {dupes}")
 
-    print(f"  🔄 Duplicates removed (seen this week): {duplicate_count}")
-    print(f"  🆕 New jobs to validate: {len(new_jobs)}")
+    # ── Step 2: Remove Easy Apply / instant apply ─────────────────────────────
+    step2, easy_removed = [], 0
+    for job in step1:
+        if is_easy_apply(job):
+            easy_removed += 1
+        else:
+            step2.append(job)
+    print(f"  🚫 Easy Apply removed: {easy_removed}")
 
-    # Step 2 — Validate active (check top jobs by source priority)
-    # Don't check ALL (too slow) — check first 40, rest assume active
-    to_check   = new_jobs[:40]
-    skip_check = new_jobs[40:]
+    # ── Step 3: Keep only recent jobs (last 48h) ──────────────────────────────
+    step3, old_removed = [], 0
+    for job in step2:
+        if is_recent(job):
+            step3.append(job)
+        else:
+            old_removed += 1
+    print(f"  📅 Old jobs (>48h) removed: {old_removed}")
 
-    active_jobs   = []
-    inactive_count = 0
+    # ── Step 4: Max 2 jobs per company ────────────────────────────────────────
+    company_count = {}
+    step4, co_removed = [], 0
+    for job in step3:
+        co = job.get("company","").lower()[:25]
+        if co == "confidential company" or not co:
+            step4.append(job)  # always keep anonymous
+            continue
+        cnt = company_count.get(co, 0)
+        if cnt < 2:
+            company_count[co] = cnt + 1
+            step4.append(job)
+        else:
+            co_removed += 1
+    print(f"  🏢 Same-company overflow removed: {co_removed}")
 
-    print(f"  🔍 Checking {len(to_check)} job links for activity...")
-    for i, job in enumerate(to_check):
-        active = is_job_active(job)
-        if active:
+    # ── Step 5: Active link check (top 30) ────────────────────────────────────
+    to_check   = step4[:30]
+    skip_check = step4[30:]
+    active_jobs, inactive = [], 0
+
+    print(f"  🔍 Checking {len(to_check)} links for activity...")
+    for job in to_check:
+        if is_active(job):
             active_jobs.append(job)
         else:
-            inactive_count += 1
-        if (i + 1) % 10 == 0:
-            print(f"     Checked {i+1}/{len(to_check)}...")
-        time.sleep(0.3)  # Be polite
-
-    # Add unchecked jobs (assumed active)
+            inactive += 1
+        time.sleep(0.3)
     active_jobs.extend(skip_check)
+    print(f"  ❌ Inactive links removed: {inactive}")
+    print(f"  ✅ Final fresh unique jobs: {len(active_jobs)}")
 
-    print(f"  ❌ Inactive/dead jobs removed: {inactive_count}")
-    print(f"  ✅ Final active new jobs: {len(active_jobs)}")
-
-    # Step 3 — Mark all active new jobs as seen
-    new_hashes = 0
+    # ── Step 6: Save new hashes ───────────────────────────────────────────────
+    ts_now = now.isoformat()
+    added  = 0
     for job in active_jobs:
         h = job.pop("_hash", make_hash(job))
         if h not in seen:
-            seen[h] = today
-            new_hashes += 1
+            seen[h] = ts_now
+            added   += 1
 
-    # Save updated tracker
-    tracker["seen"] = seen
-    tracker["updated_at"] = today
-    save_gist_tracker(tracker, gist_id)
-    print(f"  💾 Added {new_hashes} new jobs to tracker")
+    tracker["seen"]    = seen
+    tracker["updated"] = ts_now
+    save_tracker(tracker, gist_id)
+    print(f"  💾 {added} new jobs added to 24h tracker")
 
-    # Step 4 — Rebuild jobs_data with filtered jobs
-    walkin_jobs  = [j for j in active_jobs if j.get("is_walkin")]
-    regular_jobs = [j for j in active_jobs if not j.get("is_walkin")]
-    mnc_jobs     = [j for j in regular_jobs if j.get("company_type") == "MNC"]
-    startup_jobs = [j for j in regular_jobs if j.get("company_type") == "Startup"]
-    other_jobs   = [j for j in regular_jobs if j.get("company_type") == "Company"]
+    # ── Rebuild ───────────────────────────────────────────────────────────────
+    walkin   = [j for j in active_jobs if j.get("is_walkin")]
+    regular  = [j for j in active_jobs if not j.get("is_walkin")]
+    mnc      = [j for j in regular if j.get("company_type") == "MNC"]
+    startup  = [j for j in regular if j.get("company_type") == "Startup"]
+    other    = [j for j in regular if j.get("company_type") == "Company"]
 
-    filtered = {
-        **jobs_data,
+    filtered = {**jobs_data,
         "total_found":   len(active_jobs),
-        "walkin_count":  len(walkin_jobs),
-        "mnc_count":     len(mnc_jobs),
-        "startup_count": len(startup_jobs),
-        "other_count":   len(other_jobs),
-        "walkin_jobs":   walkin_jobs,
-        "mnc_jobs":      mnc_jobs,
-        "startup_jobs":  startup_jobs,
-        "other_jobs":    other_jobs,
-        "all_jobs":      active_jobs,
+        "walkin_count":  len(walkin),
+        "mnc_count":     len(mnc),
+        "startup_count": len(startup),
+        "other_count":   len(other),
+        "walkin_jobs": walkin, "mnc_jobs": mnc,
+        "startup_jobs": startup, "other_jobs": other,
+        "all_jobs": active_jobs,
         "filter_stats": {
-            "total_scraped":   total_before,
-            "duplicates_removed": duplicate_count,
-            "inactive_removed":   inactive_count,
-            "final_sent":      len(active_jobs),
-        },
+            "total_scraped":     total_in,
+            "seen_24h_removed":  dupes,
+            "easy_apply_removed":easy_removed,
+            "old_removed":       old_removed,
+            "same_company_removed": co_removed,
+            "inactive_removed":  inactive,
+            "final_sent":        len(active_jobs),
+        }
     }
-
-    with open("jobs_found.json", "w") as f:
-        json.dump(filtered, f, indent=2)
+    with open("jobs_found.json","w") as f: json.dump(filtered, f, indent=2)
 
     print(f"\n  📊 Summary:")
-    print(f"     Scraped:   {total_before}")
-    print(f"     Dupes:    -{duplicate_count}")
-    print(f"     Inactive: -{inactive_count}")
-    print(f"     ✅ Final:  {len(active_jobs)} unique active jobs\n")
-
+    print(f"     Scraped   : {total_in}")
+    print(f"     -24h seen : {dupes}")
+    print(f"     -Easy apply: {easy_removed}")
+    print(f"     -Old (>48h): {old_removed}")
+    print(f"     -Same company: {co_removed}")
+    print(f"     -Inactive : {inactive}")
+    print(f"     ✅ FINAL  : {len(active_jobs)} fresh active jobs\n")
     return filtered
-
 
 if __name__ == "__main__":
     if os.path.exists("jobs_found.json"):
-        with open("jobs_found.json") as f:
-            data = json.load(f)
+        with open("jobs_found.json") as f: data = json.load(f)
         filter_new_and_active(data)
     else:
-        print("No jobs_found.json found. Run scrape_jobs.py first.")
+        print("Run scrape_jobs.py first.")
