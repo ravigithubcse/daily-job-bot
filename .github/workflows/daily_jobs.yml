@@ -2,9 +2,8 @@ name: Daily IT Job Digest — Roy
 
 on:
   schedule:
-    - cron: '30 1 * * *'   # PRIMARY   — 7:00 AM IST nominal (GitHub fires ~8-9 AM IST with delay)
-    - cron: '30 2 * * *'   # SECONDARY — 8:00 AM IST nominal (backup, used once PRIMARY synced)
-  workflow_dispatch:         # Manual trigger anytime
+    - cron: '30 2 * * *'   # 8:00 AM IST = 2:30 AM UTC — ONE trigger only
+  workflow_dispatch:         # Manual trigger
 
 jobs:
   run-job-bot:
@@ -29,26 +28,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Validate Gmail secrets
+      - name: Check secrets
         env:
           GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          echo "=== GMAIL SECRET VALIDATION ==="
-          if [ -z "$GMAIL_SENDER" ]; then
-            echo "❌ GMAIL_SENDER is NOT SET"
-          else
-            echo "✅ GMAIL_SENDER = $GMAIL_SENDER"
-          fi
-          if [ -z "$GMAIL_APP_PASSWORD" ]; then
-            echo "❌ GMAIL_APP_PASSWORD is NOT SET — email will fail"
-          else
-            LEN=${#GMAIL_APP_PASSWORD}
-            echo "✅ GMAIL_APP_PASSWORD is SET ($LEN chars)"
-            if [ "$LEN" -ne 16 ]; then
-              echo "⚠  WARNING: Gmail App Passwords must be exactly 16 chars — got $LEN"
-            fi
-          fi
+          echo "GMAIL_SENDER set: $([ -n "$GMAIL_SENDER" ] && echo YES || echo NO)"
+          echo "GMAIL_APP_PASSWORD set: $([ -n "$GMAIL_APP_PASSWORD" ] && echo YES || echo NO)"
 
       - name: Run Job Bot Pipeline
         env:
@@ -56,23 +42,15 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🤖 Roy Job Bot v3.0"
-          echo "📅 $(date '+%A %d %B %Y — %H:%M UTC')"
-          echo "🎯 ATS-matched IT jobs | Bengaluru only | 0-2 YOE | 13 platforms"
+          echo "🤖 Roy Job Bot — $(date '+%A %d %B %Y %H:%M UTC')"
           python scripts/run_all.py
 
-      - name: Upload email preview
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: email-preview-${{ github.run_number }}
-          path: email_preview.html
+          name: digest-${{ github.run_number }}
+          path: |
+            email_preview.html
+            jobs_found.json
           retention-days: 7
-
-      - name: Upload jobs JSON
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jobs-found-${{ github.run_number }}
-          path: jobs_found.json
-          retention-days: 3
