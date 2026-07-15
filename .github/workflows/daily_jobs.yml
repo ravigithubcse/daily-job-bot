@@ -5,6 +5,9 @@ on:
     - cron: '30 2 * * *'   # 8:00 AM IST = 2:30 AM UTC — ONE trigger only
   workflow_dispatch:         # Manual trigger
 
+permissions:
+  contents: write   # needed so the bot can commit the updated seen_jobs.json tracker back
+
 jobs:
   run-job-bot:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -40,10 +45,21 @@ jobs:
         env:
           GMAIL_SENDER:       ${{ secrets.GMAIL_SENDER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🤖 Roy Job Bot — $(date '+%A %d %B %Y %H:%M UTC')"
           python scripts/run_all.py
+
+      - name: Commit updated job tracker
+        run: |
+          git config user.name "roy-job-bot"
+          git config user.email "actions@github.com"
+          git add data/seen_jobs.json
+          if git diff --cached --quiet; then
+            echo "No tracker changes to commit."
+          else
+            git commit -m "chore: update seen_jobs tracker [skip ci]"
+            git push
+          fi
 
       - name: Upload artifacts
         if: always()
