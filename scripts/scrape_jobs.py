@@ -125,7 +125,8 @@ def extract_contact(text):
 def make_job(source, title, company, location, link,
              posted="Today", experience="0-2 years (Fresher)",
              skills="", salary="", walkin=False, walkin_info="",
-             recruiter_email="", recruiter_phone="", description=""):
+             recruiter_email="", recruiter_phone="", description="",
+             easy_apply=False):
     co = clean_co(company)
     return {
         "source": source, "title": title.strip(),
@@ -138,6 +139,7 @@ def make_job(source, title, company, location, link,
         "recruiter_phone": recruiter_phone,
         "ats_score": ats_score(title, description, skills),
         "description": description[:300] if description else "",
+        "easy_apply": bool(easy_apply),
     }
 
 def safe_get(url, headers=None, timeout=12, retries=2):
@@ -242,10 +244,11 @@ def scrape_linkedin():
                         exp     = str(jb.get("experienceRequirements",""))
                         if not title or not is_it(title): continue
                         contact = extract_contact(desc)
+                        ea = "easy apply" in desc.lower()
                         jobs.append(make_job("LinkedIn", title, company,
                                              "Bengaluru, India", link,
                                              description=desc, walkin=is_walkin(desc),
-                                             **contact))
+                                             easy_apply=ea, **contact))
                 except: pass
             # Card fallback
             cards = (soup.find_all("div", class_=re.compile(r"job-search-card")) or
@@ -266,7 +269,14 @@ def scrape_linkedin():
                     link   = ("https://www.linkedin.com"+href.split("?")[0]
                               if href.startswith("/") else href)
                     posted = de.get("datetime","Today") if de else "Today"
-                    jobs.append(make_job("LinkedIn", title, company, loc, link, posted=posted))
+                    # LinkedIn shows an "Easy Apply" badge in the card footer —
+                    # detect it from the card's own text so these jobs get
+                    # filtered out (previously this path never set the flag,
+                    # so Easy Apply jobs from LinkedIn were slipping through)
+                    card_text = card.get_text(" ", strip=True).lower()
+                    ea = "easy apply" in card_text
+                    jobs.append(make_job("LinkedIn", title, company, loc, link,
+                                          posted=posted, easy_apply=ea))
                 except: continue
             time.sleep(2)
         except Exception as e:

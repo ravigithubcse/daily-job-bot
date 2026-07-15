@@ -6,14 +6,17 @@ Job Tracker v2 — Prevents repeats + quality filters
   ✅ No Easy Apply / One-click apply jobs
   ✅ Active job validation (checks link is live)
   ✅ Last 24 hours only (skip jobs older than 24h)
-  Uses GitHub Gist for persistent storage across runs
+  Persisted as data/seen_jobs.json, committed back to the repo by the workflow
+  (previously used a GitHub Gist, but the Actions token / PAT never had the
+  "gist" scope, so every run silently started with an empty tracker — that
+  was the root cause of the same jobs repeating every day).
 """
 
 import json, os, hashlib, time, re, urllib.request, urllib.error
 from datetime import datetime, timedelta
 
-GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
-GIST_FILENAME = "roy_job_tracker_v2.json"
+REPO_ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRACKER_PATH   = os.path.join(REPO_ROOT, "data", "seen_jobs.json")
 REMEMBER_HOURS = 24   # Only 24 hours — fresh jobs each morning
 
 # Easy Apply / low-quality signals to EXCLUDE
@@ -36,11 +39,31 @@ ACTIVE_SIGNALS = [
     "qualifications", "skills required", "about the role", "we are hiring",
 ]
 
+def _normalize_link(link):
+    """Strip tracking params/fragments so the same posting always hashes the same."""
+    link = (link or "").strip().split("?")[0].split("#")[0].rstrip("/")
+    return link.lower()
+
 def make_hash(job):
-    raw = f"{job.get('title','').lower()[:40]}|{job.get('company','').lower()[:30]}"
-    return hashlib.md5(raw.encode()).hexdigest()[:12]
+    """Use the job's own link when we have one (most precise, unique per posting).
+    Fall back to full normalized title+company (no truncation — truncating to
+    30-40 chars caused distinct jobs with similar titles/companies to collide
+    and get wrongly treated as duplicates, which is why genuinely new jobs
+    were being filtered out)."""
+    link = _normalize_link(job.get("link", ""))
+    if link and link not in ("#",):
+        raw = f"link:{link}"
+    else:
+        title   = re.sub(r"\s+", " ", (job.get("title", "") or "").strip().lower())
+        company = re.sub(r"\s+", " ", (job.get("company", "") or "").strip().lower())
+        raw = f"tc:{title}|{company}"
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
 
 def is_easy_apply(job):
+    # Explicit flag set by the scraper (most reliable — e.g. LinkedIn's
+    # "Easy Apply" badge detected directly from the job card)
+    if job.get("easy_apply"):
+        return True
     combined = f"{job.get('title','')} {job.get('description','')} {job.get('link','')}".lower()
     return any(sig in combined for sig in EASY_APPLY_SIGNALS)
 
@@ -65,56 +88,35 @@ def is_recent(job):
     # If we can't parse, keep it
     return True
 
-# ── GIST STORAGE ──────────────────────────────────────────────────────────────
+# ── TRACKER STORAGE ────────────────────────────────────────────────────────────
+# Stored at data/seen_jobs.json and committed back to the repo by the workflow
+# (git push), so it persists across scheduled runs without needing any extra
+# token scopes.
 def load_tracker():
-    if not GITHUB_TOKEN:
-        if os.path.exists("seen_jobs.json"):
-            with open("seen_jobs.json") as f: return json.load(f), None
-        return {"seen": {}, "updated": ""}, None
-    try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}",
-                   "Accept": "application/vnd.github+json"}
-        req = urllib.request.Request("https://api.github.com/gists?per_page=50", headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as r:
-            gists = json.loads(r.read())
-        for gist in gists:
-            if GIST_FILENAME in gist.get("files", {}):
-                raw_url = gist["files"][GIST_FILENAME]["raw_url"]
-                req2 = urllib.request.Request(raw_url, headers=headers)
-                with urllib.request.urlopen(req2, timeout=10) as r2:
-                    data = json.loads(r2.read())
-                print(f"  📂 Tracker loaded: {len(data.get('seen',{}))} known jobs (24h window)")
-                return data, gist["id"]
-    except Exception as e:
-        print(f"  ⚠ Tracker load error: {e}")
+    if os.path.exists(TRACKER_PATH):
+        try:
+            with open(TRACKER_PATH) as f:
+                data = json.load(f)
+            print(f"  📂 Tracker loaded: {len(data.get('seen',{}))} known jobs (24h window)")
+            return data, None
+        except Exception as e:
+            print(f"  ⚠ Tracker load error: {e}")
+    else:
+        print("  📂 No existing tracker found — starting fresh")
     return {"seen": {}, "updated": ""}, None
 
 def save_tracker(data, gist_id=None):
-    local_path = "seen_jobs.json"
-    with open(local_path, "w") as f: json.dump(data, f, indent=2)
-    if not GITHUB_TOKEN: return None
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}",
-                   "Accept": "application/vnd.github+json",
-                   "Content-Type": "application/json"}
-        payload = json.dumps({
-            "description": "Roy Job Bot — 24h Seen Jobs Tracker",
-            "public": False,
-            "files": {GIST_FILENAME: {"content": json.dumps(data, indent=2)}}
-        }).encode()
-        if gist_id:
-            req = urllib.request.Request(f"https://api.github.com/gists/{gist_id}",
-                                         data=payload, headers=headers, method="PATCH")
-        else:
-            req = urllib.request.Request("https://api.github.com/gists",
-                                         data=payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=10) as r:
-            result = json.loads(r.read())
-        print(f"  💾 Tracker saved: {len(data.get('seen',{}))} jobs in 24h window")
-        return result.get("id")
+        os.makedirs(os.path.dirname(TRACKER_PATH), exist_ok=True)
+        with open(TRACKER_PATH, "w") as f:
+            json.dump(data, f, indent=2)
+        # Also keep a local copy at cwd/seen_jobs.json for backward-compat / artifacts
+        with open("seen_jobs.json", "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"  💾 Tracker saved: {len(data.get('seen',{}))} jobs in 24h window → {TRACKER_PATH}")
     except Exception as e:
         print(f"  ⚠ Tracker save error: {e}")
-    return gist_id
+    return None
 
 # ── ACTIVE CHECK ──────────────────────────────────────────────────────────────
 def is_active(job):
