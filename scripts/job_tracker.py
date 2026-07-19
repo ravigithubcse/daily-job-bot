@@ -259,6 +259,17 @@ def filter_new_and_active(jobs_data):
 
     tracker["seen"]    = seen
     tracker["updated"] = ts_now
+    tracker["last_source_counts"] = jobs_data.get("source_counts", {})
+    tracker["last_filter_stats"]  = {
+        "total_scraped":     total_in,
+        "seen_30d_removed":  dupes,
+        "easy_apply_removed":easy_removed,
+        "experienced_removed": exp_removed,
+        "old_removed":       old_removed,
+        "same_company_removed": co_removed,
+        "inactive_removed":  inactive,
+        "final_sent":        len(active_jobs),
+    }
     save_tracker(tracker, gist_id)
     print(f"  💾 {added} new jobs added to tracker")
 
