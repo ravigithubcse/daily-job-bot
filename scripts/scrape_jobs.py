@@ -103,13 +103,52 @@ def is_it(title):
     t = title.lower()
     if any(e in t for e in NON_IT): return False
     if any(e in t for e in SENIOR): return False
+    if requires_experienced(title): return False
     return any(k in t for k in RELEVANT)
+
+MAX_FRESHER_YEARS = 2
+
+def requires_experienced(*texts):
+    """Reject postings whose title/description states a minimum experience
+    above fresher level, even when the job's own 'experience' field or our
+    default tag says '0-2 years (Fresher)'. Catches patterns like
+    '2 to 5 yrs', '3-5 years', '5+ years experience', 'minimum 3 years'."""
+    combined = " ".join(t or "" for t in texts).lower()
+    # "X to Y yrs/years" or "X-Y yrs/years" — check the upper bound: a job
+    # asking for "2 to 5 yrs" or "1-3 years" is not a fresher role even
+    # though the lower bound alone might look acceptable
+    for m in re.finditer(r"(\d+)\s*(?:to|-|–)\s*(\d+)\s*\+?\s*(?:yrs?|years?)", combined):
+        if int(m.group(2)) > MAX_FRESHER_YEARS:
+            return True
+    # "X+ years"
+    for m in re.finditer(r"(\d+)\s*\+\s*(?:yrs?|years?)", combined):
+        if int(m.group(1)) > MAX_FRESHER_YEARS:
+            return True
+    # "minimum/at least X years"
+    for m in re.finditer(r"(?:minimum|min\.?|at least)\s*(\d+)\s*(?:yrs?|years?)", combined):
+        if int(m.group(1)) > MAX_FRESHER_YEARS:
+            return True
+    return False
 
 def is_bengaluru(loc): return any(b in (loc or "").lower() for b in BENGALURU)
 def is_walkin(text):   return any(w in (text or "").lower() for w in WALKIN)
 def clean_co(name):
     n = (name or "").strip()
     return "Confidential Company" if n.lower() in ("n/a","na","","unknown","not mentioned") else n
+
+def company_from_linkedin_url(link):
+    """LinkedIn job URLs encode the company in the slug, e.g.
+    '.../jobs/view/java-developer-at-infosys-4441345444' → 'Infosys'.
+    Used as a fallback when the page's own company field comes back empty
+    or generic, so real companies don't get masked as 'Confidential Company'
+    (which previously let unlimited postings from the same real company
+    bypass the per-company cap and reappear daily under different job IDs)."""
+    m = re.search(r"-at-([a-z0-9\-]+?)-\d+(?:\?|$)", (link or "").lower())
+    if not m:
+        return ""
+    slug = m.group(1).replace("-", " ").strip()
+    return " ".join(w.capitalize() for w in slug.split())
+
 def classify_co(name):
     n = (name or "").upper()
     if any(m.upper() in n for m in MNC_LIST): return "MNC"
@@ -240,6 +279,8 @@ def scrape_linkedin():
                         title   = jb.get("title","")
                         company = jb.get("hiringOrganization",{}).get("name","")
                         link    = jb.get("url","") or jb.get("sameAs","")
+                        if not company or clean_co(company) == "Confidential Company":
+                            company = company_from_linkedin_url(link) or company
                         desc    = jb.get("description","")[:300]
                         exp     = str(jb.get("experienceRequirements",""))
                         if not title or not is_it(title): continue
@@ -268,6 +309,8 @@ def scrape_linkedin():
                     href   = ae["href"] if ae else ""
                     link   = ("https://www.linkedin.com"+href.split("?")[0]
                               if href.startswith("/") else href)
+                    if not company or clean_co(company) == "Confidential Company":
+                        company = company_from_linkedin_url(link) or company
                     posted = de.get("datetime","Today") if de else "Today"
                     # LinkedIn shows an "Easy Apply" badge in the card footer —
                     # detect it from the card's own text so these jobs get

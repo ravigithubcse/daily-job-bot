@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Job Tracker v2 — Prevents repeats + quality filters
-  ✅ 24-hour seen-jobs window (not 7 days — so fresh jobs appear next day)
+Job Tracker v3 — Prevents repeats + quality filters
+  ✅ 30-day seen-jobs memory (a job that's already been sent is never
+     resent, even if the same posting stays live on the portal for weeks —
+     this replaces a previous 24h window that expired and re-sent postings
+     that were still live)
   ✅ Same company filter — max 2 jobs per company per email
   ✅ No Easy Apply / One-click apply jobs
   ✅ Active job validation (checks link is live)
-  ✅ Last 24 hours only (skip jobs older than 24h)
+  ✅ Experience filter — rejects postings whose title/description states
+     an experience requirement above fresher level (0-2 yrs)
+  ✅ Last 48 hours only for freshly-posted-date jobs
   Persisted as data/seen_jobs.json, committed back to the repo by the workflow
   (previously used a GitHub Gist, but the Actions token / PAT never had the
   "gist" scope, so every run silently started with an empty tracker — that
-  was the root cause of the same jobs repeating every day).
+  was the original root cause of the same jobs repeating every day).
 """
 
 import json, os, hashlib, time, re, urllib.request, urllib.error
@@ -17,7 +22,8 @@ from datetime import datetime, timedelta
 
 REPO_ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACKER_PATH   = os.path.join(REPO_ROOT, "data", "seen_jobs.json")
-REMEMBER_HOURS = 24   # Only 24 hours — fresh jobs each morning
+REMEMBER_HOURS = 24 * 30   # 30 days — a sent job should never be resent just
+                           # because the posting is still live on the portal
 
 # Easy Apply / low-quality signals to EXCLUDE
 EASY_APPLY_SIGNALS = [
@@ -67,6 +73,24 @@ def is_easy_apply(job):
     combined = f"{job.get('title','')} {job.get('description','')} {job.get('link','')}".lower()
     return any(sig in combined for sig in EASY_APPLY_SIGNALS)
 
+MAX_FRESHER_YEARS = 2
+
+def requires_experienced(job):
+    """Reject postings whose title/experience/description states a minimum
+    experience above fresher level, even if tagged '0-2 years (Fresher)' by
+    default. Catches patterns like '2 to 5 yrs', '3-5 years', '5+ years'."""
+    combined = f"{job.get('title','')} {job.get('experience','')} {job.get('description','')}".lower()
+    for m in re.finditer(r"(\d+)\s*(?:to|-|–)\s*(\d+)\s*\+?\s*(?:yrs?|years?)", combined):
+        if int(m.group(2)) > MAX_FRESHER_YEARS:
+            return True
+    for m in re.finditer(r"(\d+)\s*\+\s*(?:yrs?|years?)", combined):
+        if int(m.group(1)) > MAX_FRESHER_YEARS:
+            return True
+    for m in re.finditer(r"(?:minimum|min\.?|at least)\s*(\d+)\s*(?:yrs?|years?)", combined):
+        if int(m.group(1)) > MAX_FRESHER_YEARS:
+            return True
+    return False
+
 def is_recent(job):
     """Keep only jobs posted in last 48 hours (or if posted date unknown)."""
     posted = (job.get("posted","") or "").lower().strip()
@@ -97,7 +121,7 @@ def load_tracker():
         try:
             with open(TRACKER_PATH) as f:
                 data = json.load(f)
-            print(f"  📂 Tracker loaded: {len(data.get('seen',{}))} known jobs (24h window)")
+            print(f"  📂 Tracker loaded: {len(data.get('seen',{}))} known jobs (30d memory)")
             return data, None
         except Exception as e:
             print(f"  ⚠ Tracker load error: {e}")
@@ -113,7 +137,7 @@ def save_tracker(data, gist_id=None):
         # Also keep a local copy at cwd/seen_jobs.json for backward-compat / artifacts
         with open("seen_jobs.json", "w") as f:
             json.dump(data, f, indent=2)
-        print(f"  💾 Tracker saved: {len(data.get('seen',{}))} jobs in 24h window → {TRACKER_PATH}")
+        print(f"  💾 Tracker saved: {len(data.get('seen',{}))} jobs in 30d memory → {TRACKER_PATH}")
     except Exception as e:
         print(f"  ⚠ Tracker save error: {e}")
     return None
@@ -138,7 +162,7 @@ def is_active(job):
 # ── MAIN FILTER ───────────────────────────────────────────────────────────────
 def filter_new_and_active(jobs_data):
     print(f"\n{'='*55}")
-    print(f"  JOB FILTER v2 — 24h dedup + quality checks")
+    print(f"  JOB FILTER v3 — 30d dedup + quality checks")
     print(f"{'='*55}\n")
 
     tracker, gist_id = load_tracker()
@@ -148,12 +172,12 @@ def filter_new_and_active(jobs_data):
     # Purge entries older than 24 hours
     cutoff_ts = (now - timedelta(hours=REMEMBER_HOURS)).isoformat()
     seen = {h: ts for h, ts in seen.items() if ts >= cutoff_ts}
-    print(f"  📋 Jobs seen in last {REMEMBER_HOURS}h: {len(seen)}")
+    print(f"  📋 Jobs seen in last {REMEMBER_HOURS//24}d: {len(seen)}")
 
     all_jobs    = jobs_data.get("all_jobs", [])
     total_in    = len(all_jobs)
 
-    # ── Step 1: Remove seen in last 24h ──────────────────────────────────────
+    # ── Step 1: Remove already-sent jobs (30d memory) ──────────────────────────────────────
     step1, dupes = [], 0
     for job in all_jobs:
         h = make_hash(job)
@@ -162,7 +186,7 @@ def filter_new_and_active(jobs_data):
         else:
             job["_hash"] = h
             step1.append(job)
-    print(f"  🔄 Seen in last 24h (removed): {dupes}")
+    print(f"  🔄 Already sent before (removed): {dupes}")
 
     # ── Step 2: Remove Easy Apply / instant apply ─────────────────────────────
     step2, easy_removed = [], 0
@@ -172,6 +196,16 @@ def filter_new_and_active(jobs_data):
         else:
             step2.append(job)
     print(f"  🚫 Easy Apply removed: {easy_removed}")
+
+    # ── Step 2b: Remove postings that require >2 years experience ────────────
+    step2b, exp_removed = [], 0
+    for job in step2:
+        if requires_experienced(job):
+            exp_removed += 1
+        else:
+            step2b.append(job)
+    print(f"  🎓 Experienced (>2yr) postings removed: {exp_removed}")
+    step2 = step2b
 
     # ── Step 3: Keep only recent jobs (last 48h) ──────────────────────────────
     step3, old_removed = [], 0
@@ -226,7 +260,7 @@ def filter_new_and_active(jobs_data):
     tracker["seen"]    = seen
     tracker["updated"] = ts_now
     save_tracker(tracker, gist_id)
-    print(f"  💾 {added} new jobs added to 24h tracker")
+    print(f"  💾 {added} new jobs added to tracker")
 
     # ── Rebuild ───────────────────────────────────────────────────────────────
     walkin   = [j for j in active_jobs if j.get("is_walkin")]
@@ -246,8 +280,9 @@ def filter_new_and_active(jobs_data):
         "all_jobs": active_jobs,
         "filter_stats": {
             "total_scraped":     total_in,
-            "seen_24h_removed":  dupes,
+            "seen_30d_removed":  dupes,
             "easy_apply_removed":easy_removed,
+            "experienced_removed": exp_removed,
             "old_removed":       old_removed,
             "same_company_removed": co_removed,
             "inactive_removed":  inactive,
@@ -258,7 +293,7 @@ def filter_new_and_active(jobs_data):
 
     print(f"\n  📊 Summary:")
     print(f"     Scraped   : {total_in}")
-    print(f"     -24h seen : {dupes}")
+    print(f"     -Already sent: {dupes}")
     print(f"     -Easy apply: {easy_removed}")
     print(f"     -Old (>48h): {old_removed}")
     print(f"     -Same company: {co_removed}")

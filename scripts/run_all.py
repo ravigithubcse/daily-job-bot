@@ -35,13 +35,14 @@ def main():
     print(f"\n  Raw scraped: {raw} jobs")
 
     # Step 2: Filter — dedup + quality + active check (IMPORTANT!)
-    run("Step 2 — Filter: 24h dedup + easy-apply + company limit + active check",
+    run("Step 2 — Filter: 30d dedup + easy-apply + experience + company limit + active check",
         "job_tracker.py")
     final, stats = count_jobs()
     print(f"  Final after filters: {final} jobs")
     if stats:
-        print(f"  Seen 24h: -{stats.get('seen_24h_removed',0)}")
+        print(f"  Already sent before: -{stats.get('seen_30d_removed',0)}")
         print(f"  Easy apply: -{stats.get('easy_apply_removed',0)}")
+        print(f"  Experienced (>2yr): -{stats.get('experienced_removed',0)}")
         print(f"  Old jobs: -{stats.get('old_removed',0)}")
         print(f"  Same company: -{stats.get('same_company_removed',0)}")
         print(f"  Inactive: -{stats.get('inactive_removed',0)}")
