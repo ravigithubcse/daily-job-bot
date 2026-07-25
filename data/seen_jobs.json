@@ -54,12 +54,15 @@
     "1037c57fb0624c8c": "2026-07-24T05:38:08.530555",
     "17c68c4b1e2d9bee": "2026-07-24T05:38:08.530555",
     "e12e3d2d87802c7b": "2026-07-24T05:38:08.530555",
-    "f7e738f451cff852": "2026-07-24T05:38:08.530555"
+    "f7e738f451cff852": "2026-07-24T05:38:08.530555",
+    "f8f635927e25fa0a": "2026-07-25T05:30:43.398813",
+    "600692ee24c631e1": "2026-07-25T05:30:43.398813",
+    "db533683aec0bc4c": "2026-07-25T05:30:43.398813"
   },
-  "updated": "2026-07-24T05:38:08.530555",
+  "updated": "2026-07-25T05:30:43.398813",
   "last_source_counts": {
-    "LinkedIn": 16,
-    "Internshala": 11,
+    "LinkedIn": 10,
+    "Internshala": 9,
     "Naukri API": 0,
     "Indeed RSS": 0,
     "TimesJobs RSS": 0,
@@ -72,13 +75,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 27,
-    "seen_30d_removed": 22,
+    "total_scraped": 19,
+    "seen_30d_removed": 15,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
     "old_removed": 1,
     "same_company_removed": 0,
     "inactive_removed": 0,
-    "final_sent": 4
+    "final_sent": 3
   }
 }
