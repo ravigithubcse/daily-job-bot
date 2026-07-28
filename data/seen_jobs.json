@@ -65,11 +65,16 @@
     "23b1bb659b0a3cec": "2026-07-27T06:07:36.198281",
     "40926dd94f1dfe04": "2026-07-27T06:07:36.198281",
     "92abb215bd60d2c0": "2026-07-27T06:07:36.198281",
-    "5d16e72f078a3fd6": "2026-07-27T06:07:36.198281"
+    "5d16e72f078a3fd6": "2026-07-27T06:07:36.198281",
+    "8b68f12646d2af08": "2026-07-28T05:33:28.231082",
+    "d4647bf6b9cabb69": "2026-07-28T05:33:28.231082",
+    "d7a267b629881cc8": "2026-07-28T05:33:28.231082",
+    "7d110b18bb391a18": "2026-07-28T05:33:28.231082",
+    "2f03e5c126bfb29f": "2026-07-28T05:33:28.231082"
   },
-  "updated": "2026-07-27T06:07:36.198281",
+  "updated": "2026-07-28T05:33:28.231082",
   "last_source_counts": {
-    "LinkedIn": 20,
+    "LinkedIn": 18,
     "Internshala": 10,
     "Naukri API": 0,
     "Indeed RSS": 0,
@@ -83,13 +88,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 30,
-    "seen_30d_removed": 24,
+    "total_scraped": 28,
+    "seen_30d_removed": 20,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 1,
+    "old_removed": 3,
     "same_company_removed": 0,
-    "inactive_removed": 1,
-    "final_sent": 4
+    "inactive_removed": 0,
+    "final_sent": 5
   }
 }
