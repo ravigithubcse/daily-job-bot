@@ -147,11 +147,14 @@
     "5d90fa2d555bca74": "2026-08-08T03:54:07.107370",
     "3c20e75c4f85d1e7": "2026-08-08T03:54:07.107370",
     "c31b40efdb3810fc": "2026-08-08T03:54:07.107370",
-    "a7f40841436e52b2": "2026-08-08T03:54:07.107370"
+    "a7f40841436e52b2": "2026-08-08T03:54:07.107370",
+    "d705925da646c96c": "2026-08-09T04:00:54.271198",
+    "dcbda1558a2760b4": "2026-08-09T04:00:54.271198",
+    "5cd655f2eaa37fcb": "2026-08-09T04:00:54.271198"
   },
-  "updated": "2026-08-08T03:54:07.107370",
+  "updated": "2026-08-09T04:00:54.271198",
   "last_source_counts": {
-    "LinkedIn": 27,
+    "LinkedIn": 32,
     "Internshala": 11,
     "Naukri API": 0,
     "Indeed RSS": 0,
@@ -165,13 +168,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 38,
-    "seen_30d_removed": 28,
+    "total_scraped": 43,
+    "seen_30d_removed": 33,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 4,
+    "old_removed": 7,
     "same_company_removed": 0,
-    "inactive_removed": 1,
-    "final_sent": 5
+    "inactive_removed": 0,
+    "final_sent": 3
   }
 }
