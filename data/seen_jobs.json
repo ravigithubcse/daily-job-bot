@@ -1,9 +1,5 @@
 {
   "seen": {
-    "e27ee62bcd3c04a8": "2026-08-16T03:29:58.125024",
-    "9349b225847e879b": "2026-08-16T03:29:58.125024",
-    "10270c11ab583159": "2026-08-16T03:29:58.125024",
-    "3c1460d9e5c108c6": "2026-08-16T03:29:58.125024",
     "69816c3ff5a23880": "2026-08-17T03:30:59.259146",
     "b0748a8e95fc3c15": "2026-08-18T03:26:06.738669",
     "980843313433840b": "2026-08-18T03:26:06.738669",
@@ -195,12 +191,14 @@
     "c727e5d229e93cb8": "2026-09-13T07:39:04.347239",
     "3a0328be789cbb52": "2026-09-13T07:39:04.347239",
     "d3d8fc4b1657a5aa": "2026-09-13T07:39:04.347239",
-    "db0e4ba73d08f73b": "2026-09-14T08:05:46.925691"
+    "db0e4ba73d08f73b": "2026-09-14T08:05:46.925691",
+    "a2ec2c9c23af310d": "2026-09-15T08:00:19.002036",
+    "f66ecfa1b92f57d4": "2026-09-15T08:00:19.002036"
   },
-  "updated": "2026-09-14T08:05:46.925691",
+  "updated": "2026-09-15T08:00:19.002036",
   "last_source_counts": {
-    "LinkedIn": 25,
-    "Internshala": 11,
+    "LinkedIn": 24,
+    "Internshala": 6,
     "Naukri API": 0,
     "Indeed RSS": 0,
     "TimesJobs RSS": 0,
@@ -213,13 +211,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 36,
-    "seen_30d_removed": 33,
+    "total_scraped": 29,
+    "seen_30d_removed": 26,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 2,
+    "old_removed": 1,
     "same_company_removed": 0,
     "inactive_removed": 0,
-    "final_sent": 1
+    "final_sent": 2
   }
 }
