@@ -1,6 +1,5 @@
 {
   "seen": {
-    "69816c3ff5a23880": "2026-08-17T03:30:59.259146",
     "b0748a8e95fc3c15": "2026-08-18T03:26:06.738669",
     "980843313433840b": "2026-08-18T03:26:06.738669",
     "7c9b54a5fb80b65d": "2026-08-18T03:26:06.738669",
@@ -193,12 +192,19 @@
     "d3d8fc4b1657a5aa": "2026-09-13T07:39:04.347239",
     "db0e4ba73d08f73b": "2026-09-14T08:05:46.925691",
     "a2ec2c9c23af310d": "2026-09-15T08:00:19.002036",
-    "f66ecfa1b92f57d4": "2026-09-15T08:00:19.002036"
+    "f66ecfa1b92f57d4": "2026-09-15T08:00:19.002036",
+    "503d81f7c97d91c3": "2026-09-16T07:53:43.605804",
+    "d3f9feaa24fd2dc8": "2026-09-16T07:53:43.605804",
+    "a435ea55b803bfea": "2026-09-16T07:53:43.605804",
+    "28f020b91b6200ef": "2026-09-16T07:53:43.605804",
+    "5ce39a617c652301": "2026-09-16T07:53:43.605804",
+    "742f4e2fd71524a4": "2026-09-16T07:53:43.605804",
+    "01d96ef17b6a9a6b": "2026-09-16T07:53:43.605804"
   },
-  "updated": "2026-09-15T08:00:19.002036",
+  "updated": "2026-09-16T07:53:43.605804",
   "last_source_counts": {
-    "LinkedIn": 24,
-    "Internshala": 6,
+    "LinkedIn": 26,
+    "Internshala": 9,
     "Naukri API": 0,
     "Indeed RSS": 0,
     "TimesJobs RSS": 0,
@@ -211,13 +217,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 29,
-    "seen_30d_removed": 26,
+    "total_scraped": 35,
+    "seen_30d_removed": 28,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 1,
+    "old_removed": 0,
     "same_company_removed": 0,
     "inactive_removed": 0,
-    "final_sent": 2
+    "final_sent": 7
   }
 }
