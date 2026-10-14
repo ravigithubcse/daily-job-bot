@@ -152,12 +152,15 @@
     "a0c78ccc013f7eee": "2026-10-12T09:37:56.163823",
     "0ccf7d9476707cd0": "2026-10-13T09:41:54.067638",
     "4e06a885c7b5ed70": "2026-10-13T09:41:54.067638",
-    "1b46347c53c10af4": "2026-10-13T09:41:54.067638"
+    "1b46347c53c10af4": "2026-10-13T09:41:54.067638",
+    "8b4912eb63e391b6": "2026-10-14T07:57:15.523616",
+    "c7c5af6c53c45b0b": "2026-10-14T07:57:15.523616",
+    "951ba9522733f2ba": "2026-10-14T07:57:15.523616"
   },
-  "updated": "2026-10-13T09:41:54.067638",
+  "updated": "2026-10-14T07:57:15.523616",
   "last_source_counts": {
-    "LinkedIn": 26,
-    "Internshala": 8,
+    "LinkedIn": 24,
+    "Internshala": 9,
     "Naukri API": 0,
     "Indeed RSS": 0,
     "TimesJobs RSS": 0,
@@ -170,8 +173,8 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 34,
-    "seen_30d_removed": 29,
+    "total_scraped": 33,
+    "seen_30d_removed": 28,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
     "old_removed": 2,
