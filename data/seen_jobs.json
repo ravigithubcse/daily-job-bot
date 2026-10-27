@@ -169,9 +169,13 @@
     "2c0f5c917f3defe9": "2026-10-26T08:03:40.873776",
     "37da6bdc6e084ffb": "2026-10-26T08:03:40.873776",
     "548c7d7b4d076d50": "2026-10-26T08:03:40.873776",
-    "34645ba9f779f35a": "2026-10-26T08:03:40.873776"
+    "34645ba9f779f35a": "2026-10-26T08:03:40.873776",
+    "ae19e06eee4e208a": "2026-10-27T08:15:19.801300",
+    "bfe36daf421d38a0": "2026-10-27T08:15:19.801300",
+    "5e1f570d924257cf": "2026-10-27T08:15:19.801300",
+    "4a47d8c9b97ce767": "2026-10-27T08:15:19.801300"
   },
-  "updated": "2026-10-26T08:03:40.873776",
+  "updated": "2026-10-27T08:15:19.801300",
   "last_source_counts": {
     "LinkedIn": 25,
     "Internshala": 8,
@@ -191,9 +195,9 @@
     "seen_30d_removed": 26,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 2,
+    "old_removed": 3,
     "same_company_removed": 0,
     "inactive_removed": 0,
-    "final_sent": 5
+    "final_sent": 4
   }
 }
