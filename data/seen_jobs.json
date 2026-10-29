@@ -178,12 +178,20 @@
     "5b2c3acb858e53f7": "2026-10-28T08:54:36.456831",
     "8ae2f4f6d5dbd07c": "2026-10-28T08:54:36.456831",
     "32eaa10bc1d17989": "2026-10-28T08:54:36.456831",
-    "b85ffe34006a694f": "2026-10-28T08:54:36.456831"
+    "b85ffe34006a694f": "2026-10-28T08:54:36.456831",
+    "2d248d795875cfb3": "2026-10-29T08:48:06.231322",
+    "9c9fc4839804230a": "2026-10-29T08:48:06.231322",
+    "6b4303e7bebace0c": "2026-10-29T08:48:06.231322",
+    "a73fc354b2f0ee38": "2026-10-29T08:48:06.231322",
+    "250d3533b6d8f5f3": "2026-10-29T08:48:06.231322",
+    "742f4e2fd71524a4": "2026-10-29T08:48:06.231322",
+    "03b017f9f740b991": "2026-10-29T08:48:06.231322",
+    "e9a71fe739629856": "2026-10-29T08:48:06.231322"
   },
-  "updated": "2026-10-28T08:54:36.456831",
+  "updated": "2026-10-29T08:48:06.231322",
   "last_source_counts": {
-    "LinkedIn": 26,
-    "Internshala": 8,
+    "LinkedIn": 23,
+    "Internshala": 10,
     "Naukri API": 0,
     "Indeed RSS": 0,
     "TimesJobs RSS": 0,
@@ -196,13 +204,13 @@
     "Wellfound": 0
   },
   "last_filter_stats": {
-    "total_scraped": 34,
+    "total_scraped": 33,
     "seen_30d_removed": 25,
     "easy_apply_removed": 0,
     "experienced_removed": 0,
-    "old_removed": 2,
+    "old_removed": 0,
     "same_company_removed": 0,
-    "inactive_removed": 1,
-    "final_sent": 6
+    "inactive_removed": 0,
+    "final_sent": 8
   }
 }
